@@ -108,16 +108,18 @@ describe("Pool: settle by TxLINE Score Proof (trustless, permissionless, once)",
     expect((await h.program.account.pool.fetch(pool)).state).toEqual({ locked: {} });
   });
 
-  it("rejects an abandoned Fixture (routes to Void in a later ticket, not settle)", async () => {
+  it("routes an abandoned Fixture to Void, not Settled", async () => {
     const fixtureId = 32n;
     const { pool } = await lockedPool(fixtureId);
     const abandoned = { ...statsFor(fixtureId, 0, 0), status: STATUS_ABANDONED };
     const { root, proof } = buildScoreProof(abandoned, decoys);
     const scoresRoot = publishScoresRoot(h.context, root);
 
-    await expect(
-      settlePool(h, { pool, scoresRoot, proof, signer: await fundedSigner(h) }),
-    ).rejects.toThrow(/FixtureNotFinalised/);
+    await settlePool(h, { pool, scoresRoot, proof, signer: await fundedSigner(h) });
+
+    const acct = await h.program.account.pool.fetch(pool);
+    expect(acct.state).toEqual({ void: {} });
+    expect(acct.voidReason).toEqual({ abandoned: {} });
   });
 
   it("refuses to settle a Pool that is not Locked (still Open)", async () => {

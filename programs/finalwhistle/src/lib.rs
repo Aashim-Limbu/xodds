@@ -20,6 +20,10 @@ pub const TXLINE_PROGRAM_ID: Pubkey =
 pub const STATUS_FINALISED: u8 = 0;
 pub const STATUS_ABANDONED: u8 = 1;
 
+/// Grace window after kickoff (CONTEXT.md, ~6h): once elapsed, a still-Locked Pool that
+/// never finalised may be Voided permissionlessly so its funds are never stranded.
+pub const GRACE_SECONDS: i64 = 6 * 60 * 60;
+
 #[program]
 pub mod finalwhistle {
     use super::*;
@@ -51,6 +55,7 @@ pub mod finalwhistle {
         pool.winning_outcome = None;
         pool.proven = ProvenStats::default();
         pool.score_root = [0u8; 32];
+        pool.void_reason = None;
         Ok(())
     }
 
@@ -106,9 +111,11 @@ pub mod finalwhistle {
     }
 
     /// Settle a Locked Pool trustlessly (ADR-0004): verify TxLINE's Merkle inclusion
-    /// proof against its published root in-program, derive the winning Outcome from the
-    /// fixed 1X2 predicate (ADR-0002), and record the proven stats for the Proof Receipt.
-    /// Permissionless, once-only. A proof that does not verify moves nothing.
+    /// proof against its published root in-program, then route to the terminal state.
+    /// A Fixture that is abandoned, or whose proven winning Outcome has zero Entries,
+    /// routes to Void (so the pot is never stranded, ADR-0003); otherwise the Pool is
+    /// Settled with the proven stats for the Proof Receipt. Permissionless, once-only;
+    /// a proof that does not verify moves nothing.
     pub fn settle(ctx: Context<Settle>, proof: ScoreProof) -> Result<()> {
         let pool = &mut ctx.accounts.pool;
         require!(pool.state == PoolState::Locked, FinalWhistleError::PoolNotLocked);
@@ -123,8 +130,13 @@ pub mod finalwhistle {
             verify_inclusion(leaf, &proof.merkle_path, score_root),
             FinalWhistleError::ProofVerificationFailed
         );
+        pool.score_root = score_root;
 
-        // Only a finalised Fixture has a winner here; abandoned routes to Void (T6).
+        // Abandoned Fixture -> Void: there is no paying Outcome (ADR-0003).
+        if proof.status == STATUS_ABANDONED {
+            void_pool(pool, VoidReason::Abandoned);
+            return Ok(());
+        }
         require!(proof.status == STATUS_FINALISED, FinalWhistleError::FixtureNotFinalised);
 
         // Fixed predicate per Pool Type (ADR-0002). Only MatchWinner is wired; guard so a
@@ -138,6 +150,12 @@ pub mod finalwhistle {
             Ordering::Less => 2u8,
         };
 
+        // Nobody backed the proven Outcome -> Void, so the pot isn't stranded (ADR-0003).
+        if pool.outcome_totals[winning_outcome as usize] == 0 {
+            void_pool(pool, VoidReason::NoWinningEntries);
+            return Ok(());
+        }
+
         let proven = ProvenStats {
             home_goals: proof.home_goals,
             away_goals: proof.away_goals,
@@ -150,7 +168,6 @@ pub mod finalwhistle {
         pool.state = PoolState::Settled;
         pool.winning_outcome = Some(winning_outcome);
         pool.proven = proven;
-        pool.score_root = score_root;
 
         // The Proof Receipt is rendered from this: winning Outcome, proven stats, the
         // root verified against, and the Merkle path (AC — via emitted event).
@@ -162,6 +179,50 @@ pub mod finalwhistle {
             score_root,
             merkle_path: proof.merkle_path,
         });
+        Ok(())
+    }
+
+    /// Void a Locked Pool that never finalised: once `now >= kickoff + grace window`,
+    /// anyone may permissionlessly Void it so its funds can be refunded (CONTEXT.md
+    /// grace window; ADR-0003). No Score Proof is needed — this is the fallback for a
+    /// Fixture the oracle never reports.
+    pub fn void_expired(ctx: Context<VoidExpired>) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        require!(pool.state == PoolState::Locked, FinalWhistleError::PoolNotLocked);
+        let now = Clock::get()?.unix_timestamp;
+        let grace_deadline = pool
+            .kickoff_ts
+            .checked_add(GRACE_SECONDS)
+            .ok_or(FinalWhistleError::Overflow)?;
+        require!(now >= grace_deadline, FinalWhistleError::GracePeriodNotElapsed);
+        void_pool(pool, VoidReason::Expired);
+        Ok(())
+    }
+
+    /// Refund an Entry in full from a Void Pool — the caller's whole stake back, no fee
+    /// (ADR-0003). Any Outcome's Entry is refundable. The Entry is closed on refund
+    /// (rent to the User), so it cannot be refunded twice.
+    pub fn claim_refund(ctx: Context<ClaimRefund>) -> Result<()> {
+        let pool = &ctx.accounts.pool;
+        require!(pool.state == PoolState::Void, FinalWhistleError::PoolNotVoid);
+        let amount = ctx.accounts.entry.amount;
+
+        let group = pool.group;
+        let (fixture, pool_type, nonce, bump) = pool.seed_parts();
+        let seeds: &[&[u8]] = &[b"pool", group.as_ref(), &fixture, &pool_type, &nonce, &bump];
+
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.escrow.to_account_info(),
+                    to: ctx.accounts.user_usdc.to_account_info(),
+                    authority: ctx.accounts.pool.to_account_info(),
+                },
+                &[seeds],
+            ),
+            amount,
+        )?;
         Ok(())
     }
 
@@ -205,6 +266,18 @@ pub mod finalwhistle {
         )?;
         Ok(())
     }
+}
+
+/// Transition a Pool to Void with a reason and announce it (CONTEXT.md Void triggers).
+/// Shared by settle's abandoned/zero-backed branches and void_expired.
+fn void_pool(pool: &mut Account<Pool>, reason: VoidReason) {
+    pool.state = PoolState::Void;
+    pool.void_reason = Some(reason);
+    emit!(PoolVoided {
+        pool: pool.key(),
+        fixture_id: pool.fixture_id,
+        reason,
+    });
 }
 
 /// keccak-256 leaf over the canonical, domain-separated finalised Fixture record (ADR-0008).
@@ -361,6 +434,41 @@ pub struct ClaimPayout<'info> {
     pub token_program: Program<'info, Token>,
 }
 
+#[derive(Accounts)]
+pub struct VoidExpired<'info> {
+    #[account(mut)]
+    pub pool: Account<'info, Pool>,
+    /// Permissionless: any signer may Void an expired Pool (ADR-0003); identity unchecked.
+    pub signer: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct ClaimRefund<'info> {
+    pub pool: Account<'info, Pool>,
+    /// The caller's Entry (any Outcome). Closed on refund (rent to the User), which also
+    /// prevents a second refund. Bound to this Pool and this User.
+    #[account(
+        mut,
+        close = user,
+        has_one = pool,
+        has_one = user,
+        seeds = [b"entry", pool.key().as_ref(), user.key().as_ref(), &[entry.outcome]],
+        bump = entry.bump,
+    )]
+    pub entry: Account<'info, Entry>,
+    #[account(mut, seeds = [b"escrow", pool.key().as_ref()], bump)]
+    pub escrow: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        constraint = user_usdc.mint == pool.usdc_mint @ FinalWhistleError::WrongMint,
+        constraint = user_usdc.owner == user.key() @ FinalWhistleError::WrongOwner,
+    )]
+    pub user_usdc: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
 /// Proof Receipt inputs, emitted at settlement (ADR-0004 hero): the winning Outcome,
 /// the proven team-level stats, the TxLINE root verified against, and the Merkle path.
 #[event]
@@ -371,6 +479,26 @@ pub struct PoolSettled {
     pub proven: ProvenStats,
     pub score_root: [u8; 32],
     pub merkle_path: Vec<[u8; 32]>,
+}
+
+/// Emitted when a Pool Voids, with the reason — so the app can show why every Entry is
+/// being refunded (parallels the Proof Receipt's transparency).
+#[event]
+pub struct PoolVoided {
+    pub pool: Pubkey,
+    pub fixture_id: u64,
+    pub reason: VoidReason,
+}
+
+/// Why a Pool Voided (CONTEXT.md Void triggers).
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
+pub enum VoidReason {
+    /// The Fixture was abandoned (proven by TxLINE).
+    Abandoned,
+    /// The proven winning Outcome had zero Entries — nobody to pay.
+    NoWinningEntries,
+    /// The Fixture never finalised within the grace window after kickoff.
+    Expired,
 }
 
 /// A TxLINE Score Proof: the finalised team-level stats plus the Merkle inclusion path
@@ -419,6 +547,8 @@ pub struct Pool {
     pub winning_outcome: Option<u8>,
     pub proven: ProvenStats,
     pub score_root: [u8; 32],
+    /// Set when the Pool Voids; `None` otherwise. Records why refunds were issued.
+    pub void_reason: Option<VoidReason>,
 }
 
 impl Pool {
@@ -484,8 +614,12 @@ pub enum FinalWhistleError {
     PoolNotLocked,
     #[msg("Pool is not Settled")]
     PoolNotSettled,
+    #[msg("Pool is not Void")]
+    PoolNotVoid,
     #[msg("Entry is not on the winning Outcome")]
     NotWinningOutcome,
+    #[msg("The grace window after kickoff has not elapsed")]
+    GracePeriodNotElapsed,
     #[msg("Fixture kickoff time has not been reached")]
     BeforeKickoff,
     #[msg("Score Proof did not verify against TxLINE's published root")]

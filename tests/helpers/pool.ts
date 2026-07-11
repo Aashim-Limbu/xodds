@@ -133,3 +133,31 @@ export async function claimPayout(
     .signers([args.user])
     .rpc();
 }
+
+/** Permissionlessly Void a still-Locked Pool whose grace window has elapsed. */
+export async function voidExpired(h: Harness, pool: PublicKey, signer: Keypair): Promise<void> {
+  await h.program.methods
+    .voidExpired()
+    .accountsPartial({ pool, signer: signer.publicKey })
+    .signers([signer])
+    .rpc();
+}
+
+/** Refund an Entry in full from a Void Pool. `outcome` is the Outcome the Entry is on. */
+export async function claimRefund(
+  h: Harness,
+  args: { pool: PublicKey; escrow: PublicKey; user: Keypair; userAta: PublicKey; outcome: number },
+): Promise<void> {
+  await h.program.methods
+    .claimRefund()
+    .accountsPartial({
+      pool: args.pool,
+      entry: entryPda(h.program, args.pool, args.user.publicKey, args.outcome),
+      escrow: args.escrow,
+      userUsdc: args.userAta,
+      user: args.user.publicKey,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .signers([args.user])
+    .rpc();
+}
