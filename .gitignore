@@ -17,9 +17,17 @@ build/
 !.env.example
 *.log
 
+# Next.js (app/)
+.next/
+next-env.d.ts
+.env.local
+
 # Rust / Anchor
 target/
 test-ledger/
 
 # OS
 .DS_Store
+
+# TS incremental build info
+*.tsbuildinfo

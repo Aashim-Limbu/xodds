@@ -1,0 +1,63 @@
+:root {
+  --bg: #0b0f14;
+  --panel: #141b24;
+  --panel-2: #1c2530;
+  --line: #26313d;
+  --text: #e6edf3;
+  --muted: #8b98a5;
+  --accent: #35d07f;
+  --accent-2: #4aa3ff;
+  --danger: #ff6b6b;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  line-height: 1.5;
+}
+
+a { color: var(--accent-2); }
+
+.container { max-width: 860px; margin: 0 auto; padding: 24px 20px 80px; }
+
+.header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 24px; }
+.brand { font-weight: 700; font-size: 20px; letter-spacing: -0.02em; }
+.brand span { color: var(--accent); }
+
+.panel { background: var(--panel); border: 1px solid var(--line); border-radius: 14px; padding: 18px; margin-bottom: 16px; }
+.muted { color: var(--muted); }
+.row { display: flex; gap: 10px; align-items: center; }
+.between { justify-content: space-between; }
+.stack { display: flex; flex-direction: column; gap: 8px; }
+h1 { font-size: 22px; margin: 0 0 4px; }
+h2 { font-size: 16px; margin: 0 0 12px; }
+
+button {
+  background: var(--accent); color: #04120a; border: 0; border-radius: 10px;
+  padding: 10px 14px; font-weight: 600; cursor: pointer; font-size: 14px;
+}
+button.secondary { background: var(--panel-2); color: var(--text); border: 1px solid var(--line); }
+button:disabled { opacity: 0.5; cursor: not-allowed; }
+
+select, input {
+  background: var(--panel-2); color: var(--text); border: 1px solid var(--line);
+  border-radius: 10px; padding: 9px 11px; font-size: 14px;
+}
+
+.badge { font-size: 12px; font-weight: 700; padding: 3px 9px; border-radius: 999px; text-transform: uppercase; letter-spacing: 0.04em; }
+.badge.open { background: rgba(53,208,127,0.15); color: var(--accent); }
+.badge.locked { background: rgba(74,163,255,0.15); color: var(--accent-2); }
+.badge.settled { background: rgba(230,237,243,0.12); color: var(--text); }
+.badge.void { background: rgba(255,107,107,0.15); color: var(--danger); }
+
+.outcome { display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: center; padding: 12px; border: 1px solid var(--line); border-radius: 10px; }
+.outcome.win { border-color: var(--accent); }
+.odds { font-variant-numeric: tabular-nums; color: var(--muted); font-size: 13px; }
+.pot { font-size: 28px; font-weight: 700; font-variant-numeric: tabular-nums; }
+.entry-note { font-size: 13px; color: var(--accent); }
+.error { color: var(--danger); font-size: 13px; }
+.card-link { text-decoration: none; color: inherit; display: block; }
