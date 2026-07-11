@@ -1,0 +1,5 @@
+# Resolve transitive deps against the program's MSRV (rust-version = 1.79.0) so the
+# SBF toolchain (rustc 1.79) can build them. Without this, cargo picks latest versions
+# that require rustc 1.85+ / edition2024 and `anchor build` fails to parse/compile them.
+[resolver]
+incompatible-rust-versions = "fallback"

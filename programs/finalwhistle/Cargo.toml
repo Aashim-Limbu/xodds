@@ -1,0 +1,24 @@
+[package]
+name = "finalwhistle"
+version = "0.1.0"
+description = "FinalWhistle — friend-Group parimutuel Pools settled by TxLINE Score Proof"
+edition = "2021"
+# The Solana SBF toolchain (platform-tools v1.54) ships rustc 1.79; newer crates that
+# float in transitively require >=1.85. Pinning MSRV here + the resolver fallback in
+# .cargo/config.toml makes cargo pick 1.79-compatible dep versions instead of failing.
+rust-version = "1.79.0"
+
+[lib]
+crate-type = ["cdylib", "lib"]
+name = "finalwhistle"
+
+[features]
+default = []
+cpi = ["no-entrypoint"]
+no-entrypoint = []
+no-idl = []
+no-log-ix-name = []
+idl-build = ["anchor-lang/idl-build"]
+
+[dependencies]
+anchor-lang = "0.31.1"

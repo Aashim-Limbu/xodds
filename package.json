@@ -1,0 +1,24 @@
+{
+  "name": "finalwhistle",
+  "version": "0.1.0",
+  "private": true,
+  "description": "FinalWhistle — friend-Group parimutuel Pools settled by TxLINE Score Proof",
+  "type": "module",
+  "scripts": {
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@types/node": "^22.10.0",
+    "typescript": "^5.7.0",
+    "vitest": "^2.1.0"
+  },
+  "dependencies": {
+    "@coral-xyz/anchor": "^0.31.1",
+    "@solana/spl-token": "^0.4.9",
+    "@solana/web3.js": "^1.98.0",
+    "anchor-bankrun": "^0.5.0",
+    "solana-bankrun": "^0.4.0"
+  }
+}
