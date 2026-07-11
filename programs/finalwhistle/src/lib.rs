@@ -77,6 +77,18 @@ pub mod finalwhistle {
         pool.pot = pool.pot.checked_add(amount).ok_or(FinalWhistleError::Overflow)?;
         Ok(())
     }
+
+    /// Lock the Pool at Fixture kickoff: no more Entries, pot and Outcome totals frozen.
+    /// Permissionless (ADR-0004) — any signer may call once `now >= kickoff_ts`; the
+    /// Keeper does it for UX but is not required. One-way: only an Open Pool can Lock.
+    pub fn lock(ctx: Context<Lock>) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        require!(pool.state == PoolState::Open, FinalWhistleError::PoolNotOpen);
+        let now = Clock::get()?.unix_timestamp;
+        require!(now >= pool.kickoff_ts, FinalWhistleError::BeforeKickoff);
+        pool.state = PoolState::Locked;
+        Ok(())
+    }
 }
 
 #[derive(Accounts)]
@@ -142,6 +154,16 @@ pub struct PlaceEntry<'info> {
     pub system_program: Program<'info, System>,
 }
 
+#[derive(Accounts)]
+pub struct Lock<'info> {
+    #[account(mut)]
+    pub pool: Account<'info, Pool>,
+    /// Permissionless: any signer may crank the Lock; identity is intentionally
+    /// unchecked (not constrained to the creator or a Keeper). Present only so the
+    /// transaction has a signer.
+    pub cranker: Signer<'info>,
+}
+
 #[account]
 #[derive(InitSpace)]
 pub struct Pool {
@@ -205,6 +227,8 @@ pub enum PoolState {
 pub enum FinalWhistleError {
     #[msg("Pool is not Open")]
     PoolNotOpen,
+    #[msg("Fixture kickoff time has not been reached")]
+    BeforeKickoff,
     #[msg("Entry amount must be greater than zero")]
     ZeroAmount,
     #[msg("Outcome index is out of range for this Pool Type")]
