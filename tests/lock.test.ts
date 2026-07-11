@@ -1,9 +1,9 @@
 import { Keypair, PublicKey } from "@solana/web3.js";
 import { beforeAll, describe, expect, it } from "vitest";
 import { setUnixTimestamp } from "./helpers/clock.js";
-import { createPool, makeUser, placeEntry } from "./helpers/pool.js";
+import { createPool, fundedSigner, lockPool, makeUser, placeEntry } from "./helpers/pool.js";
 import { bootHarness, type Harness } from "./helpers/svm.js";
-import { createUsdcMint, fundSol } from "./helpers/token.js";
+import { createUsdcMint } from "./helpers/token.js";
 
 describe("Pool: Lock at kickoff (permissionless, one-way)", () => {
   let h: Harness;
@@ -17,22 +17,12 @@ describe("Pool: Lock at kickoff (permissionless, one-way)", () => {
   });
 
   const newPool = (fixtureId: bigint) => createPool(h, { group, mint, fixtureId, nonce: 0n, kickoff });
-
-  /** A funded signer that is NOT the Pool creator — to prove Lock is permissionless. */
-  async function stranger(): Promise<Keypair> {
-    const kp = Keypair.generate();
-    await fundSol(h.context, kp.publicKey, 1_000_000_000);
-    return kp;
-  }
-
-  async function lock(pool: PublicKey, cranker: Keypair): Promise<void> {
-    await h.program.methods.lock().accountsPartial({ pool, cranker: cranker.publicKey }).signers([cranker]).rpc();
-  }
+  const lock = (pool: PublicKey, signer: Awaited<ReturnType<typeof fundedSigner>>) => lockPool(h, pool, signer);
 
   it("refuses to Lock before kickoff", async () => {
     const { pool } = await newPool(1n);
     await setUnixTimestamp(h.context, Number(kickoff - 100n));
-    await expect(lock(pool, await stranger())).rejects.toThrow(/BeforeKickoff/);
+    await expect(lock(pool, await fundedSigner(h))).rejects.toThrow(/BeforeKickoff/);
     expect((await h.program.account.pool.fetch(pool)).state).toEqual({ open: {} });
   });
 
@@ -40,7 +30,7 @@ describe("Pool: Lock at kickoff (permissionless, one-way)", () => {
     const { pool } = await newPool(2n);
     await setUnixTimestamp(h.context, Number(kickoff)); // now == kickoff satisfies now >= kickoff
 
-    await lock(pool, await stranger());
+    await lock(pool, await fundedSigner(h));
 
     expect((await h.program.account.pool.fetch(pool)).state).toEqual({ locked: {} });
   });
@@ -50,7 +40,7 @@ describe("Pool: Lock at kickoff (permissionless, one-way)", () => {
     const { user, ata } = await makeUser(h, mint, 1_000_000n);
     await setUnixTimestamp(h.context, Number(kickoff));
 
-    await lock(pool, await stranger());
+    await lock(pool, await fundedSigner(h));
 
     await expect(
       placeEntry(h, { pool, escrow, user, userAta: ata, outcome: 0, amount: 100_000n }),
@@ -61,8 +51,8 @@ describe("Pool: Lock at kickoff (permissionless, one-way)", () => {
     const { pool } = await newPool(4n);
     await setUnixTimestamp(h.context, Number(kickoff));
 
-    await lock(pool, await stranger());
-    await expect(lock(pool, await stranger())).rejects.toThrow(/PoolNotOpen/);
+    await lock(pool, await fundedSigner(h));
+    await expect(lock(pool, await fundedSigner(h))).rejects.toThrow(/PoolNotOpen/);
   });
 
   // No settle()/void() instruction yet (T4/T6); force the Pool into each terminal
@@ -86,6 +76,6 @@ describe("Pool: Lock at kickoff (permissionless, one-way)", () => {
       rentEpoch: Number(raw.rentEpoch),
     });
 
-    await expect(lock(pool, await stranger())).rejects.toThrow(/PoolNotOpen/);
+    await expect(lock(pool, await fundedSigner(h))).rejects.toThrow(/PoolNotOpen/);
   });
 });

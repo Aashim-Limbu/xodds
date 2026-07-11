@@ -1,5 +1,7 @@
 use anchor_lang::prelude::*;
+use anchor_lang::solana_program::keccak;
 use anchor_spl::token::{transfer, Mint, Token, TokenAccount, Transfer};
+use std::cmp::Ordering;
 
 declare_id!("3twLVgxWB3fF6EkHGoNzH4ax8sH82fz2KZjgjwg4y7fs");
 
@@ -7,6 +9,16 @@ declare_id!("3twLVgxWB3fF6EkHGoNzH4ax8sH82fz2KZjgjwg4y7fs");
 /// (added in later tickets) use 2. Fixing the array at 3 lets those Pool Types be
 /// added by appending a `PoolType` variant — no Pool account layout change.
 pub const MAX_OUTCOMES: usize = 3;
+
+/// TxLINE's on-chain program that owns the `daily_scores_roots` accounts. The trust
+/// boundary of settlement: a score root is only honoured if its account owner is this
+/// program (ADR-0008). MVP stand-in — set to TxLINE's real program at integration.
+pub const TXLINE_PROGRAM_ID: Pubkey =
+    anchor_lang::solana_program::pubkey!("FrcPceS49sTJp9R2Mp4fH4oxZ3bRRM1ggL13z72hDHmq");
+
+/// `status` values inside a Score Proof leaf (ADR-0008).
+pub const STATUS_FINALISED: u8 = 0;
+pub const STATUS_ABANDONED: u8 = 1;
 
 #[program]
 pub mod finalwhistle {
@@ -36,6 +48,9 @@ pub mod finalwhistle {
         pool.pot = 0;
         pool.outcome_totals = [0; MAX_OUTCOMES];
         pool.bump = ctx.bumps.pool;
+        pool.winning_outcome = None;
+        pool.proven = ProvenStats::default();
+        pool.score_root = [0u8; 32];
         Ok(())
     }
 
@@ -89,6 +104,109 @@ pub mod finalwhistle {
         pool.state = PoolState::Locked;
         Ok(())
     }
+
+    /// Settle a Locked Pool trustlessly (ADR-0004): verify TxLINE's Merkle inclusion
+    /// proof against its published root in-program, derive the winning Outcome from the
+    /// fixed 1X2 predicate (ADR-0002), and record the proven stats for the Proof Receipt.
+    /// Permissionless, once-only. A proof that does not verify moves nothing.
+    pub fn settle(ctx: Context<Settle>, proof: ScoreProof) -> Result<()> {
+        let pool = &mut ctx.accounts.pool;
+        require!(pool.state == PoolState::Locked, FinalWhistleError::PoolNotLocked);
+
+        // The trust boundary: read the root only from a TxLINE-owned account (ADR-0008).
+        let score_root = read_scores_root(&ctx.accounts.scores_root)?;
+
+        // The leaf is built from the POOL's fixture_id, not caller input, so a valid
+        // proof for a different Fixture cannot settle this Pool.
+        let leaf = compute_leaf(pool.fixture_id, &proof);
+        require!(
+            verify_inclusion(leaf, &proof.merkle_path, score_root),
+            FinalWhistleError::ProofVerificationFailed
+        );
+
+        // Only a finalised Fixture has a winner here; abandoned routes to Void (T6).
+        require!(proof.status == STATUS_FINALISED, FinalWhistleError::FixtureNotFinalised);
+
+        // Fixed predicate per Pool Type (ADR-0002). Only MatchWinner is wired; guard so a
+        // future O/U Pool cannot be silently settled with the 1X2 rule below.
+        require!(pool.pool_type == PoolType::MatchWinner, FinalWhistleError::UnsupportedPoolType);
+
+        // 1X2 predicate: home vs away goals -> 0 home win / 1 draw / 2 away win.
+        let winning_outcome = match proof.home_goals.cmp(&proof.away_goals) {
+            Ordering::Greater => 0u8,
+            Ordering::Equal => 1u8,
+            Ordering::Less => 2u8,
+        };
+
+        let proven = ProvenStats {
+            home_goals: proof.home_goals,
+            away_goals: proof.away_goals,
+            home_corners: proof.home_corners,
+            away_corners: proof.away_corners,
+            home_cards: proof.home_cards,
+            away_cards: proof.away_cards,
+            status: proof.status,
+        };
+        pool.state = PoolState::Settled;
+        pool.winning_outcome = Some(winning_outcome);
+        pool.proven = proven;
+        pool.score_root = score_root;
+
+        // The Proof Receipt is rendered from this: winning Outcome, proven stats, the
+        // root verified against, and the Merkle path (AC — via emitted event).
+        emit!(PoolSettled {
+            pool: pool.key(),
+            fixture_id: pool.fixture_id,
+            winning_outcome,
+            proven,
+            score_root,
+            merkle_path: proof.merkle_path,
+        });
+        Ok(())
+    }
+}
+
+/// keccak-256 leaf over the canonical, domain-separated finalised Fixture record (ADR-0008).
+fn compute_leaf(fixture_id: u64, p: &ScoreProof) -> [u8; 32] {
+    keccak::hashv(&[
+        &[0x00u8],
+        &fixture_id.to_le_bytes(),
+        &[
+            p.home_goals,
+            p.away_goals,
+            p.home_corners,
+            p.away_corners,
+            p.home_cards,
+            p.away_cards,
+            p.status,
+        ],
+    ])
+    .0
+}
+
+/// keccak-256 internal node: domain-prefixed, sorted pair — so the proof carries no
+/// direction bits (ADR-0008).
+fn hash_node(a: &[u8; 32], b: &[u8; 32]) -> [u8; 32] {
+    let (lo, hi) = if a <= b { (a, b) } else { (b, a) };
+    keccak::hashv(&[&[0x01u8], lo, hi]).0
+}
+
+fn verify_inclusion(leaf: [u8; 32], path: &[[u8; 32]], root: [u8; 32]) -> bool {
+    let mut node = leaf;
+    for sibling in path {
+        node = hash_node(&node, sibling);
+    }
+    node == root
+}
+
+/// Read TxLINE's 32-byte score root, honouring it only if the account is TxLINE-owned.
+fn read_scores_root(acc: &UncheckedAccount) -> Result<[u8; 32]> {
+    require_keys_eq!(*acc.owner, TXLINE_PROGRAM_ID, FinalWhistleError::InvalidScoresRoot);
+    let data = acc.try_borrow_data()?;
+    require!(data.len() >= 32, FinalWhistleError::InvalidScoresRoot);
+    let mut root = [0u8; 32];
+    root.copy_from_slice(&data[..32]);
+    Ok(root)
 }
 
 #[derive(Accounts)]
@@ -161,7 +279,56 @@ pub struct Lock<'info> {
     /// Permissionless: any signer may crank the Lock; identity is intentionally
     /// unchecked (not constrained to the creator or a Keeper). Present only so the
     /// transaction has a signer.
-    pub cranker: Signer<'info>,
+    pub signer: Signer<'info>,
+}
+
+#[derive(Accounts)]
+pub struct Settle<'info> {
+    #[account(mut)]
+    pub pool: Account<'info, Pool>,
+    /// CHECK: TxLINE's `daily_scores_roots` account. Trust is enforced in the handler
+    /// by requiring `owner == TXLINE_PROGRAM_ID` (ADR-0008); we only read the root bytes.
+    pub scores_root: UncheckedAccount<'info>,
+    /// Permissionless: any signer may settle (ADR-0004); identity is unchecked.
+    pub signer: Signer<'info>,
+}
+
+/// Proof Receipt inputs, emitted at settlement (ADR-0004 hero): the winning Outcome,
+/// the proven team-level stats, the TxLINE root verified against, and the Merkle path.
+#[event]
+pub struct PoolSettled {
+    pub pool: Pubkey,
+    pub fixture_id: u64,
+    pub winning_outcome: u8,
+    pub proven: ProvenStats,
+    pub score_root: [u8; 32],
+    pub merkle_path: Vec<[u8; 32]>,
+}
+
+/// A TxLINE Score Proof: the finalised team-level stats plus the Merkle inclusion path
+/// (leaf -> root) proving them against TxLINE's published root (ADR-0008).
+#[derive(AnchorSerialize, AnchorDeserialize, Clone)]
+pub struct ScoreProof {
+    pub home_goals: u8,
+    pub away_goals: u8,
+    pub home_corners: u8,
+    pub away_corners: u8,
+    pub home_cards: u8,
+    pub away_cards: u8,
+    pub status: u8,
+    pub merkle_path: Vec<[u8; 32]>,
+}
+
+/// The proven team-level stats stored on a Settled Pool, for the Proof Receipt.
+#[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, Default, InitSpace)]
+pub struct ProvenStats {
+    pub home_goals: u8,
+    pub away_goals: u8,
+    pub home_corners: u8,
+    pub away_corners: u8,
+    pub home_cards: u8,
+    pub away_cards: u8,
+    pub status: u8,
 }
 
 #[account]
@@ -179,6 +346,11 @@ pub struct Pool {
     pub pot: u64,
     pub outcome_totals: [u64; MAX_OUTCOMES],
     pub bump: u8,
+    /// Set at settlement (ADR-0004). `None` until Settled; the proven stats and the
+    /// root are only meaningful once `state == Settled`.
+    pub winning_outcome: Option<u8>,
+    pub proven: ProvenStats,
+    pub score_root: [u8; 32],
 }
 
 impl Pool {
@@ -227,8 +399,18 @@ pub enum PoolState {
 pub enum FinalWhistleError {
     #[msg("Pool is not Open")]
     PoolNotOpen,
+    #[msg("Pool is not Locked")]
+    PoolNotLocked,
     #[msg("Fixture kickoff time has not been reached")]
     BeforeKickoff,
+    #[msg("Score Proof did not verify against TxLINE's published root")]
+    ProofVerificationFailed,
+    #[msg("Fixture is not finalised")]
+    FixtureNotFinalised,
+    #[msg("This Pool Type cannot be settled by the 1X2 predicate")]
+    UnsupportedPoolType,
+    #[msg("Scores root account is invalid or not owned by TxLINE")]
+    InvalidScoresRoot,
     #[msg("Entry amount must be greater than zero")]
     ZeroAmount,
     #[msg("Outcome index is out of range for this Pool Type")]

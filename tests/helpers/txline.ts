@@ -1,0 +1,132 @@
+import { keccak_256 } from "@noble/hashes/sha3";
+import { Keypair, PublicKey } from "@solana/web3.js";
+import type { ProgramTestContext } from "solana-bankrun";
+
+// MVP stand-in for TxLINE's program (must match TXLINE_PROGRAM_ID in the on-chain
+// program). A score root is only honoured if its account is owned by this program.
+export const TXLINE_PROGRAM_ID = new PublicKey("FrcPceS49sTJp9R2Mp4fH4oxZ3bRRM1ggL13z72hDHmq");
+
+export const STATUS_FINALISED = 0;
+export const STATUS_ABANDONED = 1;
+
+/** A finalised Fixture's team-level stats — the leaf contents (ADR-0008). */
+export interface FixtureStats {
+  fixtureId: bigint;
+  homeGoals: number;
+  awayGoals: number;
+  homeCorners: number;
+  awayCorners: number;
+  homeCards: number;
+  awayCards: number;
+  status?: number; // defaults to finalised
+}
+
+function u64le(value: bigint): Uint8Array {
+  const b = Buffer.alloc(8);
+  b.writeBigUInt64LE(value);
+  return b;
+}
+
+/** keccak-256 leaf: 0x00 ‖ fixture_id(LE) ‖ 7 stat bytes (must match compute_leaf on-chain). */
+export function leafHash(s: FixtureStats): Uint8Array {
+  const status = s.status ?? STATUS_FINALISED;
+  return keccak_256(
+    Buffer.concat([
+      Uint8Array.of(0x00),
+      u64le(s.fixtureId),
+      Uint8Array.of(s.homeGoals, s.awayGoals, s.homeCorners, s.awayCorners, s.homeCards, s.awayCards, status),
+    ]),
+  );
+}
+
+/** keccak-256 internal node: 0x01 ‖ min(a,b) ‖ max(a,b) (must match hash_node on-chain). */
+function nodeHash(a: Uint8Array, b: Uint8Array): Uint8Array {
+  const [lo, hi] = Buffer.compare(Buffer.from(a), Buffer.from(b)) <= 0 ? [a, b] : [b, a];
+  return keccak_256(Buffer.concat([Uint8Array.of(0x01), lo, hi]));
+}
+
+/**
+ * Build a Merkle tree over `leaves` (sorted-pair hashing; an odd node carries up
+ * unchanged) and return the root plus the inclusion path for `index`.
+ */
+function buildTree(leaves: Uint8Array[], index: number): { root: Uint8Array; path: Uint8Array[] } {
+  if (leaves.length === 0) throw new Error("cannot build a Merkle tree over zero leaves");
+  const path: Uint8Array[] = [];
+  let level = leaves;
+  let idx = index;
+  while (level.length > 1) {
+    const next: Uint8Array[] = [];
+    for (let i = 0; i < level.length; i += 2) {
+      if (i + 1 < level.length) {
+        next.push(nodeHash(level[i], level[i + 1]));
+        if (i === idx || i + 1 === idx) {
+          path.push(level[i === idx ? i + 1 : i]);
+          idx = next.length - 1;
+        }
+      } else {
+        // odd tail node promotes unchanged; no sibling added to the path.
+        next.push(level[i]);
+        if (i === idx) idx = next.length - 1;
+      }
+    }
+    level = next;
+  }
+  return { root: level[0], path };
+}
+
+export interface ScoreProof {
+  homeGoals: number;
+  awayGoals: number;
+  homeCorners: number;
+  awayCorners: number;
+  homeCards: number;
+  awayCards: number;
+  status: number;
+  merklePath: number[][]; // each sibling as a 32-length byte array (Anchor arg shape)
+}
+
+export interface ScoreProofBundle {
+  root: Uint8Array;
+  proof: ScoreProof;
+}
+
+/**
+ * Fabricate a TxLINE score root and a matching Score Proof for `target`, embedding it
+ * among `others` decoy Fixtures so the tree has real siblings. Returns the root and the
+ * proof to feed `settle`.
+ */
+export function buildScoreProof(target: FixtureStats, others: FixtureStats[] = []): ScoreProofBundle {
+  const all = [target, ...others];
+  const leaves = all.map(leafHash);
+  const { root, path } = buildTree(leaves, 0);
+  const status = target.status ?? STATUS_FINALISED;
+  return {
+    root,
+    proof: {
+      homeGoals: target.homeGoals,
+      awayGoals: target.awayGoals,
+      homeCorners: target.homeCorners,
+      awayCorners: target.awayCorners,
+      homeCards: target.homeCards,
+      awayCards: target.awayCards,
+      status,
+      merklePath: path.map((p) => Array.from(p)),
+    },
+  };
+}
+
+/**
+ * Publish a fabricated score root into the SVM as a TxLINE-owned account, mirroring
+ * TxLINE's `daily_scores_roots` (root bytes at offset 0). Returns the account address.
+ */
+export function publishScoresRoot(context: ProgramTestContext, root: Uint8Array): PublicKey {
+  const account = Keypair.generate().publicKey;
+  context.setAccount(account, {
+    executable: false,
+    owner: TXLINE_PROGRAM_ID,
+    lamports: 1_000_000,
+    data: Buffer.from(root),
+    rentEpoch: 0,
+  });
+  return account;
+}

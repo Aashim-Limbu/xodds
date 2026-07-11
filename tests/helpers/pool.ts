@@ -3,6 +3,7 @@ import { TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { Keypair, PublicKey, SystemProgram } from "@solana/web3.js";
 import type { Harness } from "./svm.js";
 import { fundSol, fundUsdc } from "./token.js";
+import type { ScoreProof } from "./txline.js";
 
 /** Match Winner (1X2): 0 = home win, 1 = draw, 2 = away win. */
 export const MATCH_WINNER = { matchWinner: {} };
@@ -89,5 +90,27 @@ export async function placeEntry(
       systemProgram: SystemProgram.programId,
     })
     .signers([args.user])
+    .rpc();
+}
+
+/** A funded signer that is NOT the Pool creator — proves an instruction is permissionless. */
+export async function fundedSigner(h: Harness): Promise<Keypair> {
+  const kp = Keypair.generate();
+  await fundSol(h.context, kp.publicKey, 1_000_000_000);
+  return kp;
+}
+
+export async function lockPool(h: Harness, pool: PublicKey, signer: Keypair): Promise<void> {
+  await h.program.methods.lock().accountsPartial({ pool, signer: signer.publicKey }).signers([signer]).rpc();
+}
+
+export async function settlePool(
+  h: Harness,
+  args: { pool: PublicKey; scoresRoot: PublicKey; proof: ScoreProof; signer: Keypair },
+): Promise<void> {
+  await h.program.methods
+    .settle(args.proof)
+    .accountsPartial({ pool: args.pool, scoresRoot: args.scoresRoot, signer: args.signer.publicKey })
+    .signers([args.signer])
     .rpc();
 }
