@@ -3,9 +3,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
+import { useFeed } from "@/lib/feed";
 import type { PoolAccount, PoolState } from "@/lib/anchorClient";
 import { fixtureById, outcomeLabels } from "@/lib/fixtures";
 import { decimalOdds, formatUsdc, parseUsdc } from "@/lib/format";
+import { Feed } from "./Feed";
+import { ProofReceipt } from "./ProofReceipt";
 
 const STATE_LABEL: Record<PoolState, string> = {
   open: "Open",
@@ -20,10 +23,22 @@ const VOID_REASON_LABEL: Record<string, string> = {
   expired: "the Fixture never finalised in time",
 };
 
-/** Live view of one Pool: pot, per-Outcome totals + Reference Odds, place Entry, and
- * post-settlement payout (auto-claimed) or refund. */
+const SYSTEM_POST: Partial<Record<PoolState, string>> = {
+  locked: "⏱️ Pool Locked at kickoff — Entries are frozen.",
+  settled: "✅ Pool Settled — the Proof Receipt is in.",
+  void: "↩️ Pool Voided — every Entry is refunded in full.",
+};
+
+function short(s: string): string {
+  return `${s.slice(0, 4)}…${s.slice(-4)}`;
+}
+
+/** Live view of one Pool: pot, per-Outcome totals + Reference Odds, place Entry, the live
+ * Feed, and — once Settled — the Proof Receipt. */
 export function PoolView({ address }: { address: string }) {
-  const { client } = useFinalWhistle();
+  const { client, email, address: wallet } = useFinalWhistle();
+  const displayName = email ?? (wallet ? short(wallet) : "anon");
+  const feed = useFeed(address, displayName);
   const poolKey = new PublicKey(address);
   const [pool, setPool] = useState<PoolAccount | null>(null);
   const [myEntries, setMyEntries] = useState<(bigint | null)[]>([null, null, null]);
@@ -31,25 +46,40 @@ export function PoolView({ address }: { address: string }) {
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const autoClaimed = useRef(false);
+  const lastState = useRef<PoolState | null>(null);
 
   const refresh = useCallback(async () => {
     if (!client) return;
     try {
       const p = await client.fetchPool(poolKey);
       setPool(p);
-      const entries = await Promise.all([0, 1, 2].map((o) => client.fetchEntryAmount(poolKey, o)));
-      setMyEntries(entries);
+      setMyEntries(await Promise.all([0, 1, 2].map((o) => client.fetchEntryAmount(poolKey, o))));
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
   }, [client, address]);
 
-  // Poll for "live" pot / totals / state (T8 replaces polling with the rented realtime Feed).
+  // Poll for "live" pot / totals / state and auto-post Pool-action transitions to the Feed.
   useEffect(() => {
     refresh();
     const id = setInterval(refresh, 4000);
     return () => clearInterval(id);
   }, [refresh]);
+
+  useEffect(() => {
+    if (!pool) return;
+    if (lastState.current && lastState.current !== pool.state) {
+      const line = SYSTEM_POST[pool.state];
+      if (line) feed.postSystem(`sys:${address}:${pool.state}`, line);
+      // Fixture events auto-post as the match plays. Stand-in for TxLINE's scores stream
+      // (no live feed here) — scripted events replay once when the Pool Locks.
+      if (pool.state === "locked") {
+        const fx = fixtureById(pool.fixtureId);
+        fx?.matchEvents?.forEach((ev, i) => feed.postSystem(`fx:${address}:${i}`, ev));
+      }
+    }
+    lastState.current = pool.state;
+  }, [pool, feed, address]);
 
   // Auto-claim the winning payout once the Pool Settles (ADR — "feels automatic").
   useEffect(() => {
@@ -69,16 +99,27 @@ export function PoolView({ address }: { address: string }) {
   const labels = fixture ? outcomeLabels(fixture) : ["Home win", "Draw", "Away win"];
   const probs = fixture?.referenceProbabilities ?? [0, 0, 0];
 
-  async function act(fn: () => Promise<unknown>) {
+  async function act(fn: () => Promise<unknown>): Promise<boolean> {
     setBusy(true);
     setError(null);
     try {
       await fn();
       await refresh();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
+      return false;
     } finally {
       setBusy(false);
+    }
+  }
+
+  async function back(outcome: number) {
+    if (!client) return;
+    const entered = parseUsdc(amount);
+    // Only announce the Entry to the Feed once it actually landed on-chain.
+    if (await act(() => client.placeEntry(poolKey, outcome, entered))) {
+      feed.postSystem(`entry:${Date.now()}`, `💸 ${displayName} backed $${amount} on ${labels[outcome]}`);
     }
   }
 
@@ -119,11 +160,7 @@ export function PoolView({ address }: { address: string }) {
                 </span>
               </div>
               {pool.state === "open" ? (
-                <button
-                  className="secondary"
-                  disabled={busy || !client}
-                  onClick={() => act(() => client!.placeEntry(poolKey, o, parseUsdc(amount)))}
-                >
+                <button className="secondary" disabled={busy || !client} onClick={() => back(o)}>
                   Back ${amount}
                 </button>
               ) : (
@@ -150,6 +187,10 @@ export function PoolView({ address }: { address: string }) {
         )}
         {error && <p className="error">{error}</p>}
       </div>
+
+      {pool.state === "settled" && <ProofReceipt address={address} fixtureId={pool.fixtureId} />}
+
+      <Feed feed={feed} />
     </div>
   );
 }

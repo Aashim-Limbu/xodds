@@ -19,6 +19,9 @@ pnpm dev                     # http://localhost:3000
 
 - `NEXT_PUBLIC_PRIVY_APP_ID` — create an app at [dashboard.privy.io](https://dashboard.privy.io);
   enable **Email** login and **Solana embedded wallets**.
+- `NEXT_PUBLIC_SUPABASE_URL` / `NEXT_PUBLIC_SUPABASE_ANON_KEY` — a free
+  [Supabase](https://supabase.com) project for the live **Feed** (Realtime channels only —
+  no database table needed). Leave blank to run without the Feed.
 - `NEXT_PUBLIC_RPC_URL` — devnet by default.
 - `NEXT_PUBLIC_PROGRAM_ID` — the deployed program (defaults to the workspace program id).
 - `NEXT_PUBLIC_USDC_MINT` — a devnet USDC-like SPL mint (see below).
@@ -49,7 +52,10 @@ Each User needs an associated `<MINT>` account with a balance to place Entries.
 ## What this app is (and isn't)
 
 - **Is:** onboarding + create/enter/state UI wired to the on-chain program; live pot/Outcome
-  totals via polling; auto-claim on Settle; refund on Void.
-- **Isn't (yet):** the rich social **Feed** (auto-posted events, chat, presence) and the
-  **Proof Receipt** — those are ticket T8. Live updates here use polling; T8 swaps in the
-  rented realtime layer (ADR-0006).
+  totals; auto-claim on Settle; refund on Void; a live **Feed** (presence, messages,
+  reactions, auto-posted Pool actions) on Supabase Realtime; and the **Proof Receipt** —
+  the winning Outcome, proven stats, TxLINE score root, Merkle path, and settlement tx,
+  rebuilt from the on-chain settlement so any Member can verify it.
+- **Stand-ins:** Fixtures + Reference Odds are a documented mock of TxLINE's feed; the Feed's
+  auto-posted **Fixture events** (live goals/cards) would come from TxLINE's scores stream at
+  integration. Pool state still updates via polling; the Feed carries the social layer.

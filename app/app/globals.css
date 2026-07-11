@@ -61,3 +61,19 @@ select, input {
 .entry-note { font-size: 13px; color: var(--accent); }
 .error { color: var(--danger); font-size: 13px; }
 .card-link { text-decoration: none; color: inherit; display: block; }
+
+/* Proof Receipt — the hero artifact */
+.receipt { border-color: var(--accent); background: linear-gradient(180deg, rgba(53,208,127,0.06), var(--panel)); }
+.receipt-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; margin-top: 14px; }
+.receipt-label { font-size: 12px; }
+.receipt-strong { font-size: 18px; font-weight: 700; }
+.mono { font-family: ui-monospace, SFMono-Regular, Menlo, monospace; font-size: 12px; word-break: break-all; color: var(--text); }
+
+/* Feed */
+.feed-scroll { max-height: 320px; overflow-y: auto; gap: 6px; padding-right: 4px; }
+.feed-msg { font-size: 14px; }
+.feed-msg strong { color: var(--accent-2); }
+.feed-reaction { font-size: 14px; }
+.feed-reaction strong { color: var(--accent-2); }
+.feed-system { font-size: 13px; color: var(--muted); font-style: italic; }
+.reaction-btn { padding: 6px 10px; font-size: 16px; }

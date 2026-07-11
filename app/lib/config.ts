@@ -9,6 +9,12 @@ export const RPC_URL = process.env.NEXT_PUBLIC_RPC_URL ?? "https://api.devnet.so
 
 export const PRIVY_APP_ID = process.env.NEXT_PUBLIC_PRIVY_APP_ID ?? "";
 
+// Rented realtime backend for the Feed (ADR-0006). When unset, the Feed is disabled and
+// prompts for setup — the rest of the app still works.
+export const SUPABASE_URL = process.env.NEXT_PUBLIC_SUPABASE_URL ?? "";
+export const SUPABASE_ANON_KEY = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ?? "";
+export const FEED_ENABLED = Boolean(SUPABASE_URL && SUPABASE_ANON_KEY);
+
 export const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_PROGRAM_ID ?? "3twLVgxWB3fF6EkHGoNzH4ax8sH82fz2KZjgjwg4y7fs",
 );

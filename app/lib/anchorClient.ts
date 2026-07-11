@@ -1,4 +1,4 @@
-import { AnchorProvider, BN, Program, type Wallet } from "@coral-xyz/anchor";
+import { AnchorProvider, BN, EventParser, Program, type Wallet } from "@coral-xyz/anchor";
 import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
 import { type Connection, PublicKey, SystemProgram } from "@solana/web3.js";
 import idl from "./idl/finalwhistle.json";
@@ -7,6 +7,16 @@ import { groupId, usdcMint } from "./config";
 import { entryPda, escrowPda, poolPda } from "./pdas";
 
 export type PoolState = "open" | "locked" | "settled" | "void";
+
+export interface ProvenStats {
+  homeGoals: number;
+  awayGoals: number;
+  homeCorners: number;
+  awayCorners: number;
+  homeCards: number;
+  awayCards: number;
+  status: number;
+}
 
 export interface PoolAccount {
   address: PublicKey;
@@ -22,6 +32,21 @@ export interface PoolAccount {
   outcomeTotals: [bigint, bigint, bigint];
   winningOutcome: number | null;
   voidReason: "abandoned" | "noWinningEntries" | "expired" | null;
+  proven: ProvenStats;
+  scoreRoot: Uint8Array;
+}
+
+/** The Proof Receipt data: everything needed to independently verify the settlement. */
+export interface SettlementReceipt {
+  winningOutcome: number;
+  proven: ProvenStats;
+  scoreRoot: Uint8Array;
+  merklePath: Uint8Array[];
+  signature: string;
+}
+
+function toBytes(arr: number[]): Uint8Array {
+  return Uint8Array.from(arr);
 }
 
 function stateName(state: Record<string, unknown>): PoolState {
@@ -123,6 +148,8 @@ export class FinalWhistleClient {
       outcomeTotals: acct.outcomeTotals.map((t) => BigInt(t.toString())) as [bigint, bigint, bigint],
       winningOutcome: acct.winningOutcome ?? null,
       voidReason: enumName(acct.voidReason as Record<string, unknown> | null),
+      proven: { ...acct.proven },
+      scoreRoot: toBytes(acct.scoreRoot),
     };
   }
 
@@ -141,4 +168,46 @@ export class FinalWhistleClient {
     const entry = await this.program.account.entry.fetchNullable(entryPda(pool, this.wallet, outcome));
     return entry ? BigInt(entry.amount.toString()) : null;
   }
+
+  /**
+   * Reconstruct the Proof Receipt for a Settled Pool by finding its settle transaction
+   * and parsing the PoolSettled event — the Merkle path and settlement signature live in
+   * the event (not on the account). Returns null if no settlement is found.
+   */
+  async fetchSettlement(pool: PublicKey): Promise<SettlementReceipt | null> {
+    const connection = this.program.provider.connection;
+    const parser = new EventParser(this.program.programId, this.program.coder);
+    const sigs = await connection.getSignaturesForAddress(pool, { limit: 30 });
+    for (const { signature } of sigs) {
+      const tx = await connection.getTransaction(signature, {
+        commitment: "confirmed",
+        maxSupportedTransactionVersion: 0,
+      });
+      const logs = tx?.meta?.logMessages;
+      if (!logs) continue;
+      for (const event of parser.parseLogs(logs)) {
+        if (event.name.toLowerCase() === "poolsettled") {
+          const data = event.data as {
+            winningOutcome: number;
+            proven: ProvenStats;
+            scoreRoot: number[];
+            merklePath: number[][];
+          };
+          return {
+            winningOutcome: data.winningOutcome,
+            proven: { ...data.proven },
+            scoreRoot: toBytes(data.scoreRoot),
+            merklePath: data.merklePath.map(toBytes),
+            signature,
+          };
+        }
+      }
+    }
+    return null;
+  }
+}
+
+/** Lowercase hex of a byte array, for rendering roots and Merkle nodes. */
+export function toHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }

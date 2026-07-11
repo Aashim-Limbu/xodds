@@ -10,6 +10,9 @@ export interface Fixture {
   kickoff: number; // unix seconds
   /** Reference Odds as implied probabilities per Outcome [home win, draw, away win]. */
   referenceProbabilities: [number, number, number];
+  /** Scripted in-match events for the Feed — a stand-in for TxLINE's live scores stream
+   * (there is no live feed here). These replay once when the Pool Locks. */
+  matchEvents?: string[];
 }
 
 // A fixed slate for the demo. Kickoffs are far-future so Pools stay Open in the demo.
@@ -20,6 +23,12 @@ export const FIXTURES: Fixture[] = [
     away: "Brazil",
     kickoff: 2_000_000_000,
     referenceProbabilities: [0.42, 0.27, 0.31],
+    matchEvents: [
+      "⚽ 23' GOAL — Argentina (1–0)",
+      "🟨 41' Yellow card — Brazil",
+      "⚽ 67' GOAL — Brazil (1–1)",
+      "🚩 90'+3 Full time",
+    ],
   },
   {
     fixtureId: 1002n,
