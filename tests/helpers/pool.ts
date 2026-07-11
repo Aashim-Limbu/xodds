@@ -114,3 +114,22 @@ export async function settlePool(
     .signers([args.signer])
     .rpc();
 }
+
+/** Claim a winning Entry's payout. `outcome` is the Outcome the User's Entry is on. */
+export async function claimPayout(
+  h: Harness,
+  args: { pool: PublicKey; escrow: PublicKey; user: Keypair; userAta: PublicKey; outcome: number },
+): Promise<void> {
+  await h.program.methods
+    .claimPayout()
+    .accountsPartial({
+      pool: args.pool,
+      entry: entryPda(h.program, args.pool, args.user.publicKey, args.outcome),
+      escrow: args.escrow,
+      userUsdc: args.userAta,
+      user: args.user.publicKey,
+      tokenProgram: TOKEN_PROGRAM_ID,
+    })
+    .signers([args.user])
+    .rpc();
+}

@@ -164,6 +164,47 @@ pub mod finalwhistle {
         });
         Ok(())
     }
+
+    /// Claim a winning Entry's parimutuel payout from escrow (ADR-0003):
+    /// `entry / winning_outcome_total * pot`, integer math rounded down — leftover dust
+    /// stays in escrow. Claim-based so settlement is one bounded transaction regardless
+    /// of Entry count; the Entry is closed on claim, so it cannot be claimed twice.
+    pub fn claim_payout(ctx: Context<ClaimPayout>) -> Result<()> {
+        let pool = &ctx.accounts.pool;
+        require!(pool.state == PoolState::Settled, FinalWhistleError::PoolNotSettled);
+        let winning_outcome = pool.winning_outcome.ok_or(FinalWhistleError::PoolNotSettled)?;
+
+        let entry = &ctx.accounts.entry;
+        require!(entry.outcome == winning_outcome, FinalWhistleError::NotWinningOutcome);
+
+        // win_total >= entry.amount > 0, so the division cannot be by zero. Compute in
+        // u128 to hold entry.amount * pot before dividing; the quotient fits in u64.
+        let win_total = pool.outcome_totals[winning_outcome as usize];
+        let payout = (entry.amount as u128)
+            .checked_mul(pool.pot as u128)
+            .ok_or(FinalWhistleError::Overflow)?
+            .checked_div(win_total as u128)
+            .ok_or(FinalWhistleError::Overflow)? as u64;
+
+        // The escrow's authority is the Pool PDA; sign the withdrawal with its seeds.
+        let group = pool.group;
+        let (fixture, pool_type, nonce, bump) = pool.seed_parts();
+        let seeds: &[&[u8]] = &[b"pool", group.as_ref(), &fixture, &pool_type, &nonce, &bump];
+
+        transfer(
+            CpiContext::new_with_signer(
+                ctx.accounts.token_program.to_account_info(),
+                Transfer {
+                    from: ctx.accounts.escrow.to_account_info(),
+                    to: ctx.accounts.user_usdc.to_account_info(),
+                    authority: ctx.accounts.pool.to_account_info(),
+                },
+                &[seeds],
+            ),
+            payout,
+        )?;
+        Ok(())
+    }
 }
 
 /// keccak-256 leaf over the canonical, domain-separated finalised Fixture record (ADR-0008).
@@ -293,6 +334,33 @@ pub struct Settle<'info> {
     pub signer: Signer<'info>,
 }
 
+#[derive(Accounts)]
+pub struct ClaimPayout<'info> {
+    pub pool: Account<'info, Pool>,
+    /// The caller's Entry on the winning Outcome. Closed on a successful claim (rent to
+    /// the User), which also prevents a second claim. Bound to this Pool and this User.
+    #[account(
+        mut,
+        close = user,
+        has_one = pool,
+        has_one = user,
+        seeds = [b"entry", pool.key().as_ref(), user.key().as_ref(), &[entry.outcome]],
+        bump = entry.bump,
+    )]
+    pub entry: Account<'info, Entry>,
+    #[account(mut, seeds = [b"escrow", pool.key().as_ref()], bump)]
+    pub escrow: Account<'info, TokenAccount>,
+    #[account(
+        mut,
+        constraint = user_usdc.mint == pool.usdc_mint @ FinalWhistleError::WrongMint,
+        constraint = user_usdc.owner == user.key() @ FinalWhistleError::WrongOwner,
+    )]
+    pub user_usdc: Account<'info, TokenAccount>,
+    #[account(mut)]
+    pub user: Signer<'info>,
+    pub token_program: Program<'info, Token>,
+}
+
 /// Proof Receipt inputs, emitted at settlement (ADR-0004 hero): the winning Outcome,
 /// the proven team-level stats, the TxLINE root verified against, and the Merkle path.
 #[event]
@@ -357,6 +425,19 @@ impl Pool {
     pub fn outcome_count(&self) -> usize {
         self.pool_type.outcome_count()
     }
+
+    /// The variable byte parts of this Pool's PDA signer seeds (fixture_id, pool_type,
+    /// nonce, bump), in seed order. Centralised so every escrow-signing site (claim,
+    /// and refund in T6) encodes the fields identically to the CreatePool seeds. The
+    /// caller prepends `b"pool"` and `group`, which own their own storage.
+    pub fn seed_parts(&self) -> ([u8; 8], [u8; 1], [u8; 8], [u8; 1]) {
+        (
+            self.fixture_id.to_le_bytes(),
+            [self.pool_type as u8],
+            self.nonce.to_le_bytes(),
+            [self.bump],
+        )
+    }
 }
 
 #[account]
@@ -401,6 +482,10 @@ pub enum FinalWhistleError {
     PoolNotOpen,
     #[msg("Pool is not Locked")]
     PoolNotLocked,
+    #[msg("Pool is not Settled")]
+    PoolNotSettled,
+    #[msg("Entry is not on the winning Outcome")]
+    NotWinningOutcome,
     #[msg("Fixture kickoff time has not been reached")]
     BeforeKickoff,
     #[msg("Score Proof did not verify against TxLINE's published root")]
