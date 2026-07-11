@@ -12,5 +12,5 @@
     "noEmit": true,
     "isolatedModules": true
   },
-  "include": ["tests", "target/types"]
+  "include": ["tests", "keeper", "target/types"]
 }
