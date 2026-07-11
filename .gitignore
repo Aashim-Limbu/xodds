@@ -1,0 +1,25 @@
+# Tooling / skill packages — not project source
+.claude/
+.agents/
+.superstack/
+skills-lock.json
+
+# Scratch strategy & validation reports (keep local)
+idea-*.html
+validation-*.html
+
+# Node / build
+node_modules/
+dist/
+build/
+.env
+.env.*
+!.env.example
+*.log
+
+# Rust / Anchor
+target/
+test-ledger/
+
+# OS
+.DS_Store

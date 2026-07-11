@@ -1,0 +1,5 @@
+# Rich social Feed is co-equal to trustless settlement; the realtime layer is rented
+
+The app has two co-priority pillars: (1) trustless TxLINE-proven settlement (the differentiator that wins the Consumer track) and (2) a rich social Feed — reactions, presence, live chat — that makes it feel like a friendly consumer app (the axis the track scores). Neither is trimmed to serve the other.
+
+To fit both in the hackathon window, the realtime social layer (chat, reactions, presence) is built on a **rented realtime backend/SDK** (e.g. Supabase Realtime / Stream), not hand-rolled — it delivers rich UX in days, and hand-building websockets/presence/message-sync is the week-eating trap. Our own scarce engineering hours go to the settlement pieces that *cannot* be bought: in-program Merkle verification and the two devnet spikes (P1/P2 participant-join correctness, Score Proof permanence). We build a thin end-to-end vertical slice first (create → enter → lock → live Feed+chat → settle+Proof Receipt → payout), then thicken both pillars in parallel. The Feed deliberately excludes generic messaging plumbing (threads, DMs, search) that would not differentiate.
