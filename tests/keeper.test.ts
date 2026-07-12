@@ -34,8 +34,19 @@ describe("Keeper decision core", () => {
   });
 
   it("prefers settling over the grace timeout when a result arrives late", () => {
-    // Past the grace deadline, but TxLINE finalised — settle (real result) beats Void.
-    expect(decideAction("locked", KICKOFF, KICKOFF + GRACE + 1000, finalised)).toBe("settle");
+    // Past the grace deadline, but TxLINE finalised AND settleable — settle beats Void.
+    expect(decideAction("locked", KICKOFF, KICKOFF + GRACE + 1000, finalised, true)).toBe("settle");
+  });
+
+  it("waits while a result exists but its root is not yet published (before grace)", () => {
+    // settleable=false: can't settle yet, but grace hasn't elapsed — don't Void prematurely.
+    expect(decideAction("locked", KICKOFF, KICKOFF + 60, finalised, false)).toBe("none");
+  });
+
+  it("Voids past grace when a result exists but is unsettleable (root never published)", () => {
+    // The funds-safety fallback: a result with no root must not strand funds forever.
+    expect(decideAction("locked", KICKOFF, KICKOFF + GRACE, finalised, false)).toBe("void_expired");
+    expect(decideAction("locked", KICKOFF, KICKOFF + GRACE, abandoned, false)).toBe("void_expired");
   });
 
   it("never touches a terminal Pool (idempotent across restarts)", () => {

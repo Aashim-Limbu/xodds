@@ -36,7 +36,9 @@ export class Keeper {
     for (const { publicKey, account } of pools) {
       const state = Object.keys(account.state)[0] as PoolState;
       const fixtureId = BigInt(account.fixtureId.toString());
-      const action = decideAction(state, account.kickoffTs.toNumber(), now, this.txline.result(fixtureId));
+      // Settle only when the score root actually exists; otherwise the grace fallback Voids.
+      const settleable = this.txline.scoresRootAccount(fixtureId) !== null;
+      const action = decideAction(state, account.kickoffTs.toNumber(), now, this.txline.result(fixtureId), settleable);
       if (action === "none") continue;
       try {
         await this.execute(action, publicKey, fixtureId);
