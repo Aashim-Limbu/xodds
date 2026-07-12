@@ -16,8 +16,9 @@ export {
 } from "../../keeper/merkle.js";
 
 /**
- * Publish a fabricated score root into the SVM as a TxLINE-owned account, mirroring
- * TxLINE's `daily_scores_roots` (root bytes at offset 0). Bankrun-only. Returns the address.
+ * Publish a fabricated score root into the SVM as a TxLINE-owned account, mirroring the
+ * txline_mock `ScoresRoot` layout: an 8-byte Anchor discriminator then the 32-byte root
+ * (finalwhistle reads bytes [8..40]). Bankrun-only. Returns the address.
  */
 export function publishScoresRoot(context: ProgramTestContext, root: Uint8Array): PublicKey {
   const account = Keypair.generate().publicKey;
@@ -25,7 +26,7 @@ export function publishScoresRoot(context: ProgramTestContext, root: Uint8Array)
     executable: false,
     owner: TXLINE_PROGRAM_ID,
     lamports: 1_000_000,
-    data: Buffer.from(root),
+    data: Buffer.concat([Buffer.alloc(8), Buffer.from(root)]), // 8-byte discriminator + root
     rentEpoch: 0,
   });
   return account;

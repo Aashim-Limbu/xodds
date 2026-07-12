@@ -1,5 +1,9 @@
 import { AnchorProvider, BN, EventParser, Program, type Wallet } from "@coral-xyz/anchor";
-import { getAssociatedTokenAddressSync, TOKEN_PROGRAM_ID } from "@solana/spl-token";
+import {
+  createAssociatedTokenAccountIdempotentInstruction,
+  getAssociatedTokenAddressSync,
+  TOKEN_PROGRAM_ID,
+} from "@solana/spl-token";
 import { type Connection, PublicKey, SystemProgram } from "@solana/web3.js";
 import idl from "./idl/finalwhistle.json";
 import type { Finalwhistle } from "./idl/finalwhistle";
@@ -95,17 +99,23 @@ export class FinalWhistleClient {
   /** Place an Entry of `amount` (base USDC units) on `outcome` of a Pool. */
   async placeEntry(pool: PublicKey, outcome: number, amount: bigint): Promise<void> {
     const mint = usdcMint();
+    const userUsdc = getAssociatedTokenAddressSync(mint, this.wallet);
     await this.program.methods
       .placeEntry(outcome, new BN(amount.toString()))
       .accountsPartial({
         pool,
         entry: entryPda(pool, this.wallet, outcome),
         escrow: escrowPda(pool),
-        userUsdc: getAssociatedTokenAddressSync(mint, this.wallet),
+        userUsdc,
         user: this.wallet,
         tokenProgram: TOKEN_PROGRAM_ID,
         systemProgram: SystemProgram.programId,
       })
+      // Create the User's USDC account if it doesn't exist yet, so the first Entry from a
+      // fresh embedded wallet doesn't fail with AccountNotInitialized.
+      .preInstructions([
+        createAssociatedTokenAccountIdempotentInstruction(this.wallet, userUsdc, this.wallet, mint),
+      ])
       .rpc();
   }
 

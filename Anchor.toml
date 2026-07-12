@@ -7,6 +7,11 @@ skip-lint = false
 
 [programs.localnet]
 finalwhistle = "3twLVgxWB3fF6EkHGoNzH4ax8sH82fz2KZjgjwg4y7fs"
+txline_mock = "7yYhmy4x1HLW9yDUKFAewbbcigZ9DtSoMFBA6xswAA2J"
+
+[programs.devnet]
+finalwhistle = "3twLVgxWB3fF6EkHGoNzH4ax8sH82fz2KZjgjwg4y7fs"
+txline_mock = "7yYhmy4x1HLW9yDUKFAewbbcigZ9DtSoMFBA6xswAA2J"
 
 [registry]
 url = "https://api.apr.dev"

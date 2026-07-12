@@ -1,6 +1,6 @@
 import type { PublicKey } from "@solana/web3.js";
 import { type FixtureResult } from "./decide.js";
-import { type FixtureStats, STATUS_ABANDONED } from "./merkle.js";
+import { type FixtureStats, scoresRootPda, STATUS_ABANDONED } from "./merkle.js";
 
 /**
  * What the Keeper needs from TxLINE. A real implementation watches TxLINE's scores stream
@@ -46,12 +46,19 @@ export class StandInTxLine implements TxLineClient {
     return this.results.get(fixtureId) ?? null;
   }
 
-  scoresRootAccount(): PublicKey | null {
-    return null; // no live TxLINE here — see interface doc
+  scoresRootAccount(fixtureId: bigint): PublicKey | null {
+    // The txline_mock program owns a PDA per Fixture holding the root, published by the
+    // publish-roots demo step. It exists only for Fixtures with a result.
+    return this.results.has(fixtureId) ? scoresRootPda(fixtureId) : null;
   }
 
   siblings(fixtureId: bigint): FixtureStats[] {
     return [...this.results.values()].filter((s) => s.fixtureId !== fixtureId);
+  }
+
+  /** Fixtures with a scripted result — the ones the demo publishes score roots for. */
+  finalisedFixtureIds(): bigint[] {
+    return [...this.results.keys()];
   }
 }
 

@@ -12,9 +12,14 @@ pub const MAX_OUTCOMES: usize = 3;
 
 /// TxLINE's on-chain program that owns the `daily_scores_roots` accounts. The trust
 /// boundary of settlement: a score root is only honoured if its account owner is this
-/// program (ADR-0008). MVP stand-in — set to TxLINE's real program at integration.
+/// program (ADR-0008). Points at the `txline_mock` scores-publisher for the devnet demo —
+/// set to TxLINE's real program at integration.
 pub const TXLINE_PROGRAM_ID: Pubkey =
-    anchor_lang::solana_program::pubkey!("FrcPceS49sTJp9R2Mp4fH4oxZ3bRRM1ggL13z72hDHmq");
+    anchor_lang::solana_program::pubkey!("7yYhmy4x1HLW9yDUKFAewbbcigZ9DtSoMFBA6xswAA2J");
+
+/// Byte offset of the 32-byte root within a TxLINE score-root account: past the 8-byte
+/// Anchor account discriminator (ADR-0008 — reconcile with TxLINE's real layout).
+pub const SCORE_ROOT_OFFSET: usize = 8;
 
 /// `status` values inside a Score Proof leaf (ADR-0008).
 pub const STATUS_FINALISED: u8 = 0;
@@ -317,9 +322,10 @@ fn verify_inclusion(leaf: [u8; 32], path: &[[u8; 32]], root: [u8; 32]) -> bool {
 fn read_scores_root(acc: &UncheckedAccount) -> Result<[u8; 32]> {
     require_keys_eq!(*acc.owner, TXLINE_PROGRAM_ID, FinalWhistleError::InvalidScoresRoot);
     let data = acc.try_borrow_data()?;
-    require!(data.len() >= 32, FinalWhistleError::InvalidScoresRoot);
+    let end = SCORE_ROOT_OFFSET + 32;
+    require!(data.len() >= end, FinalWhistleError::InvalidScoresRoot);
     let mut root = [0u8; 32];
-    root.copy_from_slice(&data[..32]);
+    root.copy_from_slice(&data[SCORE_ROOT_OFFSET..end]);
     Ok(root)
 }
 

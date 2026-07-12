@@ -30,3 +30,8 @@ export function groupId(): PublicKey {
 }
 
 export const USDC_DECIMALS = 6;
+
+// A created Pool's kickoff is set this many seconds from now, so it Opens immediately and
+// becomes lockable shortly after — the whole lifecycle is demoable without waiting for a
+// real Fixture time. (The Fixture's own kickoff is display-only.)
+export const KICKOFF_OFFSET_SECONDS = Number(process.env.NEXT_PUBLIC_KICKOFF_OFFSET_SECONDS ?? 90);

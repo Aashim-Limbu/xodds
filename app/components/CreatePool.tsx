@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { FIXTURES } from "@/lib/fixtures";
+import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
 
 /** Create a Match Winner (1X2) Pool on a chosen upcoming Fixture. */
 export function CreatePool({ onCreated }: { onCreated: () => void }) {
@@ -21,7 +22,9 @@ export function CreatePool({ onCreated }: { onCreated: () => void }) {
       // so a repeat create doesn't collide with an existing Pool's PDA.
       const existing = await client.listPools();
       const nonce = BigInt(existing.filter((p) => p.fixtureId === fixture.fixtureId).length);
-      await client.createPool(fixture.fixtureId, nonce, fixture.kickoff);
+      // Kickoff a short offset from now so the Pool Opens now and can Lock soon.
+      const kickoff = Math.floor(Date.now() / 1000) + KICKOFF_OFFSET_SECONDS;
+      await client.createPool(fixture.fixtureId, nonce, kickoff);
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

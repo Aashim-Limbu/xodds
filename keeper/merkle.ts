@@ -6,9 +6,20 @@ import { PublicKey } from "@solana/web3.js";
 // source of the leaf/node encoding — it MUST match the on-chain compute_leaf/hash_node,
 // and tests/txline.test.ts pins it to known-answer vectors.
 
-// MVP stand-in for TxLINE's program id (matches TXLINE_PROGRAM_ID on-chain). A score
-// root is only honoured if its account is owned by this program.
-export const TXLINE_PROGRAM_ID = new PublicKey("FrcPceS49sTJp9R2Mp4fH4oxZ3bRRM1ggL13z72hDHmq");
+// The txline_mock scores-publisher program id (matches TXLINE_PROGRAM_ID on-chain). A
+// score root is only honoured if its account is owned by this program.
+export const TXLINE_PROGRAM_ID = new PublicKey("7yYhmy4x1HLW9yDUKFAewbbcigZ9DtSoMFBA6xswAA2J");
+
+function u64le(value: bigint): Uint8Array {
+  const b = Buffer.alloc(8);
+  b.writeBigUInt64LE(value);
+  return b;
+}
+
+/** The PDA holding a Fixture's score root under the txline_mock program: [b"root", fixture_id]. */
+export function scoresRootPda(fixtureId: bigint): PublicKey {
+  return PublicKey.findProgramAddressSync([Buffer.from("root"), u64le(fixtureId)], TXLINE_PROGRAM_ID)[0];
+}
 
 export const STATUS_FINALISED = 0;
 export const STATUS_ABANDONED = 1;
@@ -23,12 +34,6 @@ export interface FixtureStats {
   homeCards: number;
   awayCards: number;
   status?: number; // defaults to finalised
-}
-
-function u64le(value: bigint): Uint8Array {
-  const b = Buffer.alloc(8);
-  b.writeBigUInt64LE(value);
-  return b;
 }
 
 /** keccak-256 leaf: 0x00 ‖ fixture_id(LE) ‖ 7 stat bytes (must match compute_leaf on-chain). */

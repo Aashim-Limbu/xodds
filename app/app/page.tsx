@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { SignIn } from "@/components/SignIn";
 import { CreatePool } from "@/components/CreatePool";
+import { GetTestFunds } from "@/components/GetTestFunds";
 import { PoolList } from "@/components/PoolList";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 
@@ -28,6 +29,7 @@ export default function Home() {
         </div>
       ) : (
         <>
+          <GetTestFunds />
           <CreatePool onCreated={() => setRefreshKey((k) => k + 1)} />
           <h2 style={{ margin: "20px 0 12px" }}>Pools</h2>
           <PoolList refreshKey={refreshKey} />
