@@ -2,32 +2,36 @@
 
 import { useCallback, useEffect, useState } from "react";
 import Link from "next/link";
+import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import type { PoolAccount } from "@/lib/anchorClient";
 import { fixtureById } from "@/lib/fixtures";
 import { formatUsdc } from "@/lib/format";
 
-/** List of every Pool, newest activity first — click through to the live Pool view. */
-export function PoolList({ refreshKey }: { refreshKey: number }) {
+/** The active Group's Pools, newest activity first — click through to the live Pool view. */
+export function PoolList({ group, refreshKey }: { group: PublicKey; refreshKey: number }) {
   const { client } = useFinalWhistle();
   const [pools, setPools] = useState<PoolAccount[]>([]);
   const [loading, setLoading] = useState(true);
+  const groupKey = group.toBase58();
 
   const load = useCallback(async () => {
     if (!client) return;
     try {
-      setPools(await client.listPools());
+      setPools(await client.listPools(group));
     } finally {
       setLoading(false);
     }
-  }, [client]);
+  }, [client, groupKey]);
 
   useEffect(() => {
+    setLoading(true);
     load();
   }, [load, refreshKey]);
 
   if (loading) return <div className="panel muted">Loading Pools…</div>;
-  if (pools.length === 0) return <div className="panel muted">No Pools yet — create one above.</div>;
+  if (pools.length === 0)
+    return <div className="panel muted">No Pools in this Group yet — create one above.</div>;
 
   return (
     <div className="stack">

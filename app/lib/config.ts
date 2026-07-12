@@ -24,12 +24,6 @@ export function usdcMint(): PublicKey {
   return new PublicKey(required("NEXT_PUBLIC_USDC_MINT", process.env.NEXT_PUBLIC_USDC_MINT));
 }
 
-/** The Group every demo Pool belongs to (single-group demo); defaults to the program id.
- * Uses `||` so a blank env var falls back instead of becoming an invalid empty pubkey. */
-export function groupId(): PublicKey {
-  return new PublicKey(process.env.NEXT_PUBLIC_GROUP || PROGRAM_ID.toBase58());
-}
-
 export const USDC_DECIMALS = 6;
 
 // A created Pool's kickoff is set this many seconds from now, so it Opens immediately and

@@ -7,7 +7,7 @@ import {
 import { type Connection, PublicKey, SystemProgram } from "@solana/web3.js";
 import idl from "./idl/finalwhistle.json";
 import type { Finalwhistle } from "./idl/finalwhistle";
-import { groupId, usdcMint } from "./config";
+import { usdcMint } from "./config";
 import { entryPda, escrowPda, poolPda } from "./pdas";
 
 export type PoolState = "open" | "locked" | "settled" | "void";
@@ -77,9 +77,8 @@ export class FinalWhistleClient {
     return this.program.provider.publicKey!;
   }
 
-  /** Create a Match Winner Pool on a Fixture; returns the Pool address. */
-  async createPool(fixtureId: bigint, nonce: bigint, kickoffTs: number): Promise<PublicKey> {
-    const group = groupId();
+  /** Create a Match Winner Pool on a Fixture in `group`; returns the Pool address. */
+  async createPool(group: PublicKey, fixtureId: bigint, nonce: bigint, kickoffTs: number): Promise<PublicKey> {
     const mint = usdcMint();
     const pool = poolPda(group, fixtureId, nonce);
     await this.program.methods
@@ -167,9 +166,10 @@ export class FinalWhistleClient {
     return this.decode(address, await this.program.account.pool.fetch(address));
   }
 
-  /** All Pools known to the program (demo scale — no pagination). */
-  async listPools(): Promise<PoolAccount[]> {
-    const all = await this.program.account.pool.all();
+  /** Pools, optionally scoped to a Group (memcmp on the `group` field at offset 8). */
+  async listPools(group?: PublicKey): Promise<PoolAccount[]> {
+    const filters = group ? [{ memcmp: { offset: 8, bytes: group.toBase58() } }] : [];
+    const all = await this.program.account.pool.all(filters);
     return all.map((p) => this.decode(p.publicKey, p.account));
   }
 

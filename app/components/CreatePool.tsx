@@ -1,12 +1,13 @@
 "use client";
 
 import { useState } from "react";
+import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { FIXTURES } from "@/lib/fixtures";
 import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
 
-/** Create a Match Winner (1X2) Pool on a chosen upcoming Fixture. */
-export function CreatePool({ onCreated }: { onCreated: () => void }) {
+/** Create a Match Winner (1X2) Pool on a chosen upcoming Fixture, in the active Group. */
+export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: () => void }) {
   const { client } = useFinalWhistle();
   const [fixtureId, setFixtureId] = useState(FIXTURES[0].fixtureId.toString());
   const [busy, setBusy] = useState(false);
@@ -18,13 +19,13 @@ export function CreatePool({ onCreated }: { onCreated: () => void }) {
     setError(null);
     try {
       const fixture = FIXTURES.find((f) => f.fixtureId.toString() === fixtureId)!;
-      // nonce lets a Group open more than one Pool per Fixture; pick the next free one
-      // so a repeat create doesn't collide with an existing Pool's PDA.
-      const existing = await client.listPools();
+      // nonce lets a Group open more than one Pool per Fixture; pick the next free one in
+      // THIS group so a repeat create doesn't collide with an existing Pool's PDA.
+      const existing = await client.listPools(group);
       const nonce = BigInt(existing.filter((p) => p.fixtureId === fixture.fixtureId).length);
       // Kickoff a short offset from now so the Pool Opens now and can Lock soon.
       const kickoff = Math.floor(Date.now() / 1000) + KICKOFF_OFFSET_SECONDS;
-      await client.createPool(fixture.fixtureId, nonce, kickoff);
+      await client.createPool(group, fixture.fixtureId, nonce, kickoff);
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));

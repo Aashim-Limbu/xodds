@@ -1,15 +1,52 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { SignIn } from "@/components/SignIn";
 import { CreatePool } from "@/components/CreatePool";
 import { GetTestFunds } from "@/components/GetTestFunds";
+import { GroupBar } from "@/components/GroupBar";
 import { PoolList } from "@/components/PoolList";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
+import {
+  createGroup,
+  getActiveGroupId,
+  GLOBAL_GROUP,
+  type Group,
+  groupPubkey,
+  joinGroup,
+  listGroups,
+  setActiveGroupId,
+} from "@/lib/groups";
 
 export default function Home() {
   const { authenticated, client } = useFinalWhistle();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [groups, setGroups] = useState<Group[]>([GLOBAL_GROUP]);
+  const [activeId, setActiveId] = useState<string>(GLOBAL_GROUP.id);
+
+  // Load Groups from storage and honour an invite link (?join=<id>&name=<name>).
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const joinId = params.get("join");
+    if (joinId) {
+      joinGroup({ id: joinId, name: params.get("name") ?? "Group" });
+      setActiveGroupId(joinId);
+      window.history.replaceState({}, "", "/");
+    }
+    setGroups(listGroups());
+    setActiveId(getActiveGroupId());
+  }, []);
+
+  function switchGroup(id: string) {
+    setActiveGroupId(id);
+    setActiveId(id);
+  }
+
+  function create(name: string) {
+    const g = createGroup(name);
+    setGroups(listGroups());
+    switchGroup(g.id);
+  }
 
   return (
     <div className="container">
@@ -29,10 +66,11 @@ export default function Home() {
         </div>
       ) : (
         <>
+          <GroupBar groups={groups} activeId={activeId} onSwitch={switchGroup} onCreate={create} />
           <GetTestFunds />
-          <CreatePool onCreated={() => setRefreshKey((k) => k + 1)} />
+          <CreatePool group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
           <h2 style={{ margin: "20px 0 12px" }}>Pools</h2>
-          <PoolList refreshKey={refreshKey} />
+          <PoolList group={groupPubkey(activeId)} refreshKey={refreshKey} />
         </>
       )}
     </div>
