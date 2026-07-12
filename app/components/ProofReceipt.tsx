@@ -2,9 +2,9 @@
 
 import { useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { type SettlementReceipt, toHex } from "@/lib/anchorClient";
+import { type PoolTypeName, type SettlementReceipt, toHex } from "@/lib/anchorClient";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
-import { fixtureById, outcomeLabels } from "@/lib/fixtures";
+import { fixtureById, poolOutcomeLabels } from "@/lib/fixtures";
 
 function short(hex: string): string {
   return hex.length <= 20 ? hex : `${hex.slice(0, 10)}…${hex.slice(-10)}`;
@@ -16,7 +16,17 @@ function short(hex: string): string {
  * All of it is derived from the on-chain settlement, so any Member — winner or loser —
  * can check that the result was proven, not chosen.
  */
-export function ProofReceipt({ address, fixtureId }: { address: string; fixtureId: bigint }) {
+export function ProofReceipt({
+  address,
+  fixtureId,
+  poolType,
+  lineX2,
+}: {
+  address: string;
+  fixtureId: bigint;
+  poolType: PoolTypeName;
+  lineX2: number;
+}) {
   const { client } = useFinalWhistle();
   const [receipt, setReceipt] = useState<SettlementReceipt | null>(null);
   const [loading, setLoading] = useState(true);
@@ -38,7 +48,7 @@ export function ProofReceipt({ address, fixtureId }: { address: string; fixtureI
   if (!receipt) return <div className="panel muted">No settlement proof found for this Pool.</div>;
 
   const fixture = fixtureById(fixtureId);
-  const labels = fixture ? outcomeLabels(fixture) : ["Home win", "Draw", "Away win"];
+  const labels = poolOutcomeLabels(poolType, lineX2, fixture);
   const p = receipt.proven;
   const explorer = `https://explorer.solana.com/tx/${receipt.signature}?cluster=devnet`;
 

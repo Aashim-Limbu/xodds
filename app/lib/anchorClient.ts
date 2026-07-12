@@ -11,6 +11,13 @@ import { usdcMint } from "./config";
 import { entryPda, escrowPda, poolPda } from "./pdas";
 
 export type PoolState = "open" | "locked" | "settled" | "void";
+export type PoolTypeName = "matchWinner" | "totalGoals";
+
+const POOL_TYPE_ARG: Record<PoolTypeName, object> = {
+  matchWinner: { matchWinner: {} },
+  totalGoals: { totalGoals: {} },
+};
+const POOL_TYPE_BYTE: Record<PoolTypeName, number> = { matchWinner: 0, totalGoals: 1 };
 
 export interface ProvenStats {
   homeGoals: number;
@@ -29,6 +36,8 @@ export interface PoolAccount {
   fixtureId: bigint;
   nonce: bigint;
   state: PoolState;
+  poolType: PoolTypeName;
+  lineX2: number;
   kickoffTs: number;
   usdcMint: PublicKey;
   escrow: PublicKey;
@@ -61,9 +70,6 @@ function enumName<T extends string>(value: Record<string, unknown> | null): T | 
   return value ? (Object.keys(value)[0] as T) : null;
 }
 
-// The Match Winner (1X2) Pool Type discriminator the program expects (camelCase enum).
-const MATCH_WINNER = { matchWinner: {} };
-
 /** Typed client over the finalwhistle program, driven by the signed-in embedded wallet. */
 export class FinalWhistleClient {
   readonly program: Program<Finalwhistle>;
@@ -77,12 +83,27 @@ export class FinalWhistleClient {
     return this.program.provider.publicKey!;
   }
 
-  /** Create a Match Winner Pool on a Fixture in `group`; returns the Pool address. */
-  async createPool(group: PublicKey, fixtureId: bigint, nonce: bigint, kickoffTs: number): Promise<PublicKey> {
+  /** Create a Pool on a Fixture in `group`; returns the Pool address. `lineX2` is the
+   * Over/Under Line × 2 (odd half-integer) for `totalGoals`; ignored for `matchWinner`. */
+  async createPool(
+    group: PublicKey,
+    fixtureId: bigint,
+    nonce: bigint,
+    kickoffTs: number,
+    poolType: PoolTypeName = "matchWinner",
+    lineX2 = 0,
+  ): Promise<PublicKey> {
     const mint = usdcMint();
-    const pool = poolPda(group, fixtureId, nonce);
+    const pool = poolPda(group, fixtureId, nonce, POOL_TYPE_BYTE[poolType]);
     await this.program.methods
-      .createPool(group, new BN(fixtureId.toString()), MATCH_WINNER, new BN(nonce.toString()), new BN(kickoffTs))
+      .createPool(
+        group,
+        new BN(fixtureId.toString()),
+        POOL_TYPE_ARG[poolType],
+        new BN(nonce.toString()),
+        new BN(kickoffTs),
+        lineX2,
+      )
       .accountsPartial({
         pool,
         escrow: escrowPda(pool),
@@ -150,6 +171,8 @@ export class FinalWhistleClient {
       fixtureId: BigInt(acct.fixtureId.toString()),
       nonce: BigInt(acct.nonce.toString()),
       state: stateName(acct.state as Record<string, unknown>),
+      poolType: (enumName(acct.poolType as Record<string, unknown>) ?? "matchWinner") as PoolTypeName,
+      lineX2: acct.lineX2,
       kickoffTs: acct.kickoffTs.toNumber(),
       usdcMint: acct.usdcMint,
       escrow: acct.escrow,
@@ -166,11 +189,21 @@ export class FinalWhistleClient {
     return this.decode(address, await this.program.account.pool.fetch(address));
   }
 
-  /** Pools, optionally scoped to a Group (memcmp on the `group` field at offset 8). */
+  /** Pools, optionally scoped to a Group (memcmp on the `group` field at offset 8).
+   * Decodes each account defensively so an Entry account or a pre-upgrade Pool with an
+   * older layout is skipped rather than breaking the whole list. */
   async listPools(group?: PublicKey): Promise<PoolAccount[]> {
     const filters = group ? [{ memcmp: { offset: 8, bytes: group.toBase58() } }] : [];
-    const all = await this.program.account.pool.all(filters);
-    return all.map((p) => this.decode(p.publicKey, p.account));
+    const raw = await this.program.provider.connection.getProgramAccounts(this.program.programId, { filters });
+    const pools: PoolAccount[] = [];
+    for (const { pubkey, account } of raw) {
+      try {
+        pools.push(this.decode(pubkey, this.program.coder.accounts.decode("Pool", account.data)));
+      } catch {
+        // not a current-layout Pool — skip
+      }
+    }
+    return pools;
   }
 
   /** Does the signed-in User hold an Entry on this Outcome of this Pool? */

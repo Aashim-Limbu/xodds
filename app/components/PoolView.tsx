@@ -5,7 +5,7 @@ import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { useFeed } from "@/lib/feed";
 import type { PoolAccount, PoolState } from "@/lib/anchorClient";
-import { fixtureById, outcomeLabels } from "@/lib/fixtures";
+import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
 import { decimalOdds, formatUsdc, parseUsdc } from "@/lib/format";
 import { Feed } from "./Feed";
 import { ProofReceipt } from "./ProofReceipt";
@@ -96,8 +96,9 @@ export function PoolView({ address }: { address: string }) {
   if (!pool) return <div className="panel muted">Loading Pool…</div>;
 
   const fixture = fixtureById(pool.fixtureId);
-  const labels = fixture ? outcomeLabels(fixture) : ["Home win", "Draw", "Away win"];
+  const labels = poolOutcomeLabels(pool.poolType, pool.lineX2, fixture);
   const probs = fixture?.referenceProbabilities ?? [0, 0, 0];
+  const showOdds = pool.poolType === "matchWinner"; // the mock only carries 1X2 Reference Odds
 
   async function act(fn: () => Promise<unknown>): Promise<boolean> {
     setBusy(true);
@@ -130,7 +131,7 @@ export function PoolView({ address }: { address: string }) {
           <h1>{fixture ? `${fixture.home} vs ${fixture.away}` : `Fixture ${pool.fixtureId}`}</h1>
           <span className={`badge ${pool.state}`}>{STATE_LABEL[pool.state]}</span>
         </div>
-        <div className="muted">Match Winner (1X2) · Fixture {pool.fixtureId.toString()}</div>
+        <div className="muted">{poolTypeLabel(pool.poolType, pool.lineX2)} · Fixture {pool.fixtureId.toString()}</div>
         <div className="row between" style={{ marginTop: 14 }}>
           <div>
             <div className="muted" style={{ fontSize: 13 }}>Pot</div>
@@ -147,15 +148,16 @@ export function PoolView({ address }: { address: string }) {
 
       <div className="panel stack">
         <h2>Outcomes</h2>
-        {([0, 1, 2] as const).map((o) => {
+        {labels.map((label, o) => {
           const isWinner = pool.state === "settled" && pool.winningOutcome === o;
           const mine = myEntries[o];
           return (
             <div key={o} className={`outcome${isWinner ? " win" : ""}`}>
               <div className="stack" style={{ gap: 2 }}>
-                <strong>{labels[o]}</strong>
+                <strong>{label}</strong>
                 <span className="odds">
-                  Reference Odds {decimalOdds(probs[o])} · Entries ${formatUsdc(pool.outcomeTotals[o])}
+                  {showOdds ? `Reference Odds ${decimalOdds(probs[o])} · ` : ""}Entries $
+                  {formatUsdc(pool.outcomeTotals[o])}
                   {mine ? ` · yours $${formatUsdc(mine)}` : ""}
                 </span>
               </div>
@@ -188,7 +190,9 @@ export function PoolView({ address }: { address: string }) {
         {error && <p className="error">{error}</p>}
       </div>
 
-      {pool.state === "settled" && <ProofReceipt address={address} fixtureId={pool.fixtureId} />}
+      {pool.state === "settled" && (
+        <ProofReceipt address={address} fixtureId={pool.fixtureId} poolType={pool.poolType} lineX2={pool.lineX2} />
+      )}
 
       <Feed feed={feed} />
     </div>

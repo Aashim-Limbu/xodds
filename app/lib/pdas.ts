@@ -7,10 +7,10 @@ function u64le(value: bigint): Buffer {
   return b;
 }
 
-// Pool PDA: [b"pool", group, fixture_id, pool_type=0 (MatchWinner), nonce] — matches the program.
-export function poolPda(group: PublicKey, fixtureId: bigint, nonce: bigint): PublicKey {
+// Pool PDA: [b"pool", group, fixture_id, pool_type byte, nonce] — matches the program.
+export function poolPda(group: PublicKey, fixtureId: bigint, nonce: bigint, poolTypeByte = 0): PublicKey {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("pool"), group.toBuffer(), u64le(fixtureId), Buffer.from([0]), u64le(nonce)],
+    [Buffer.from("pool"), group.toBuffer(), u64le(fixtureId), Buffer.from([poolTypeByte]), u64le(nonce)],
     PROGRAM_ID,
   )[0];
 }

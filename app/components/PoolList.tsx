@@ -5,7 +5,7 @@ import Link from "next/link";
 import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import type { PoolAccount } from "@/lib/anchorClient";
-import { fixtureById } from "@/lib/fixtures";
+import { fixtureById, poolTypeLabel } from "@/lib/fixtures";
 import { formatUsdc } from "@/lib/format";
 
 /** The active Group's Pools, newest activity first — click through to the live Pool view. */
@@ -42,7 +42,9 @@ export function PoolList({ group, refreshKey }: { group: PublicKey; refreshKey: 
             <div className="panel row between" style={{ marginBottom: 0 }}>
               <div className="stack" style={{ gap: 2 }}>
                 <strong>{f ? `${f.home} vs ${f.away}` : `Fixture ${p.fixtureId}`}</strong>
-                <span className="muted" style={{ fontSize: 13 }}>Pot ${formatUsdc(p.pot)}</span>
+                <span className="muted" style={{ fontSize: 13 }}>
+                  {poolTypeLabel(p.poolType, p.lineX2)} · Pot ${formatUsdc(p.pot)}
+                </span>
               </div>
               <span className={`badge ${p.state}`}>{p.state}</span>
             </div>

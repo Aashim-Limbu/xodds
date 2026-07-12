@@ -7,6 +7,14 @@ import type { ScoreProof } from "./txline.js";
 
 /** Match Winner (1X2): 0 = home win, 1 = draw, 2 = away win. */
 export const MATCH_WINNER = { matchWinner: {} };
+/** Total Goals O/U: 0 = Over, 1 = Under. */
+export const TOTAL_GOALS = { totalGoals: {} };
+
+type PoolTypeName = "matchWinner" | "totalGoals";
+const POOL_TYPES: Record<PoolTypeName, { arg: object; byte: number }> = {
+  matchWinner: { arg: MATCH_WINNER, byte: 0 },
+  totalGoals: { arg: TOTAL_GOALS, byte: 1 },
+};
 
 type Program = Harness["program"];
 
@@ -16,10 +24,16 @@ function u64le(value: bigint): Buffer {
   return buf;
 }
 
-/** Pool PDA: [b"pool", group, fixture_id, pool_type=0 (MatchWinner), nonce]. */
-export function poolPda(program: Program, group: PublicKey, fixtureId: bigint, nonce: bigint): PublicKey {
+/** Pool PDA: [b"pool", group, fixture_id, pool_type byte, nonce]. */
+export function poolPda(
+  program: Program,
+  group: PublicKey,
+  fixtureId: bigint,
+  nonce: bigint,
+  poolTypeByte = 0,
+): PublicKey {
   return PublicKey.findProgramAddressSync(
-    [Buffer.from("pool"), group.toBuffer(), u64le(fixtureId), Buffer.from([0]), u64le(nonce)],
+    [Buffer.from("pool"), group.toBuffer(), u64le(fixtureId), Buffer.from([poolTypeByte]), u64le(nonce)],
     program.programId,
   )[0];
 }
@@ -35,20 +49,30 @@ export function entryPda(program: Program, pool: PublicKey, user: PublicKey, out
   )[0];
 }
 
-/** Create a MatchWinner Pool; returns its Pool and escrow PDAs. */
+/** Create a Pool (MatchWinner by default; pass poolType/lineX2 for O/U). */
 export async function createPool(
   h: Harness,
-  opts: { group: PublicKey; mint: PublicKey; fixtureId: bigint; nonce: bigint; kickoff: bigint },
+  opts: {
+    group: PublicKey;
+    mint: PublicKey;
+    fixtureId: bigint;
+    nonce: bigint;
+    kickoff: bigint;
+    poolType?: PoolTypeName;
+    lineX2?: number;
+  },
 ): Promise<{ pool: PublicKey; escrow: PublicKey }> {
-  const pool = poolPda(h.program, opts.group, opts.fixtureId, opts.nonce);
+  const pt = POOL_TYPES[opts.poolType ?? "matchWinner"];
+  const pool = poolPda(h.program, opts.group, opts.fixtureId, opts.nonce, pt.byte);
   const escrow = escrowPda(h.program, pool);
   await h.program.methods
     .createPool(
       opts.group,
       new BN(opts.fixtureId.toString()),
-      MATCH_WINNER,
+      pt.arg,
       new BN(opts.nonce.toString()),
       new BN(opts.kickoff.toString()),
+      opts.lineX2 ?? 0,
     )
     .accountsPartial({
       pool,

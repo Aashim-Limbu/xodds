@@ -43,12 +43,22 @@ pub mod finalwhistle {
         pool_type: PoolType,
         nonce: u64,
         kickoff_ts: i64,
+        line_x2: u16,
     ) -> Result<()> {
+        // Line-based types need a half-integer Line (odd × 2) so a push is impossible;
+        // MatchWinner has no Line.
+        let line_x2 = if pool_type.has_line() {
+            require!(line_x2 % 2 == 1, FinalWhistleError::InvalidLine);
+            line_x2
+        } else {
+            0
+        };
         let pool = &mut ctx.accounts.pool;
         pool.group = group;
         pool.creator = ctx.accounts.creator.key();
         pool.fixture_id = fixture_id;
         pool.pool_type = pool_type;
+        pool.line_x2 = line_x2;
         pool.nonce = nonce;
         pool.state = PoolState::Open;
         pool.kickoff_ts = kickoff_ts;
@@ -144,15 +154,24 @@ pub mod finalwhistle {
         }
         require!(proof.status == STATUS_FINALISED, FinalWhistleError::FixtureNotFinalised);
 
-        // Fixed predicate per Pool Type (ADR-0002). Only MatchWinner is wired; guard so a
-        // future O/U Pool cannot be silently settled with the 1X2 rule below.
-        require!(pool.pool_type == PoolType::MatchWinner, FinalWhistleError::UnsupportedPoolType);
-
-        // 1X2 predicate: home vs away goals -> 0 home win / 1 draw / 2 away win.
-        let winning_outcome = match proof.home_goals.cmp(&proof.away_goals) {
-            Ordering::Greater => 0u8,
-            Ordering::Equal => 1u8,
-            Ordering::Less => 2u8,
+        // Fixed predicate per Pool Type (ADR-0002).
+        let winning_outcome = match pool.pool_type {
+            // 1X2: home vs away goals -> 0 home win / 1 draw / 2 away win.
+            PoolType::MatchWinner => match proof.home_goals.cmp(&proof.away_goals) {
+                Ordering::Greater => 0u8,
+                Ordering::Equal => 1u8,
+                Ordering::Less => 2u8,
+            },
+            // Total Goals O/U: compare total*2 to the half-integer Line*2 -> 0 Over / 1 Under.
+            // The Line is odd and total*2 is even, so they never tie (no push).
+            PoolType::TotalGoals => {
+                let total = proof.home_goals as u16 + proof.away_goals as u16;
+                if total * 2 > pool.line_x2 {
+                    0u8
+                } else {
+                    1u8
+                }
+            }
         };
 
         // Nobody backed the proven Outcome -> Void, so the pot isn't stranded (ADR-0003).
@@ -540,6 +559,9 @@ pub struct Pool {
     pub creator: Pubkey,
     pub fixture_id: u64,
     pub pool_type: PoolType,
+    /// The Over/Under Line times two (a half-integer, so always odd) for line-based Pool
+    /// Types; 0 for MatchWinner. Storing ×2 keeps it an integer and makes a tie impossible.
+    pub line_x2: u16,
     pub nonce: u64,
     pub state: PoolState,
     pub kickoff_ts: i64,
@@ -594,13 +616,21 @@ pub struct Entry {
 pub enum PoolType {
     /// Match Winner (1X2): home win / draw / away win — 3 Outcomes.
     MatchWinner,
+    /// Total Goals Over/Under a Line — 2 Outcomes (Over / Under).
+    TotalGoals,
 }
 
 impl PoolType {
     pub fn outcome_count(&self) -> usize {
         match self {
             PoolType::MatchWinner => 3,
+            PoolType::TotalGoals => 2,
         }
+    }
+
+    /// Whether this Pool Type settles against a Line (an Over/Under threshold).
+    pub fn has_line(&self) -> bool {
+        matches!(self, PoolType::TotalGoals)
     }
 }
 
@@ -632,8 +662,8 @@ pub enum FinalWhistleError {
     ProofVerificationFailed,
     #[msg("Fixture is not finalised")]
     FixtureNotFinalised,
-    #[msg("This Pool Type cannot be settled by the 1X2 predicate")]
-    UnsupportedPoolType,
+    #[msg("Over/Under Line must be a half-integer (odd when stored as line_x2)")]
+    InvalidLine,
     #[msg("Scores root account is invalid or not owned by TxLINE")]
     InvalidScoresRoot,
     #[msg("Entry amount must be greater than zero")]

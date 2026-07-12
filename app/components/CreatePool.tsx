@@ -5,11 +5,21 @@ import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { FIXTURES } from "@/lib/fixtures";
 import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
+import type { PoolTypeName } from "@/lib/anchorClient";
 
-/** Create a Match Winner (1X2) Pool on a chosen upcoming Fixture, in the active Group. */
+// Over/Under Lines offered, stored as line × 2 (odd = half-integer, so no push).
+const LINES: Array<{ label: string; lineX2: number }> = [
+  { label: "1.5", lineX2: 3 },
+  { label: "2.5", lineX2: 5 },
+  { label: "3.5", lineX2: 7 },
+];
+
+/** Create a Pool (Match Winner or Total Goals O/U) on a Fixture, in the active Group. */
 export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: () => void }) {
   const { client } = useFinalWhistle();
   const [fixtureId, setFixtureId] = useState(FIXTURES[0].fixtureId.toString());
+  const [poolType, setPoolType] = useState<PoolTypeName>("matchWinner");
+  const [lineX2, setLineX2] = useState(5);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -19,13 +29,13 @@ export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: 
     setError(null);
     try {
       const fixture = FIXTURES.find((f) => f.fixtureId.toString() === fixtureId)!;
-      // nonce lets a Group open more than one Pool per Fixture; pick the next free one in
-      // THIS group so a repeat create doesn't collide with an existing Pool's PDA.
+      // Next free nonce for this Group + Fixture + Pool Type (the PDA is keyed by all three).
       const existing = await client.listPools(group);
-      const nonce = BigInt(existing.filter((p) => p.fixtureId === fixture.fixtureId).length);
-      // Kickoff a short offset from now so the Pool Opens now and can Lock soon.
+      const nonce = BigInt(
+        existing.filter((p) => p.fixtureId === fixture.fixtureId && p.poolType === poolType).length,
+      );
       const kickoff = Math.floor(Date.now() / 1000) + KICKOFF_OFFSET_SECONDS;
-      await client.createPool(group, fixture.fixtureId, nonce, kickoff);
+      await client.createPool(group, fixture.fixtureId, nonce, kickoff, poolType, poolType === "totalGoals" ? lineX2 : 0);
       onCreated();
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -35,9 +45,9 @@ export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: 
   }
 
   return (
-    <div className="panel">
-      <h2>Create a Pool</h2>
-      <div className="row">
+    <div className="panel stack" style={{ gap: 12 }}>
+      <h2 style={{ margin: 0 }}>Create a Pool</h2>
+      <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
         <select value={fixtureId} onChange={(e) => setFixtureId(e.target.value)} disabled={busy}>
           {FIXTURES.map((f) => (
             <option key={f.fixtureId.toString()} value={f.fixtureId.toString()}>
@@ -45,8 +55,21 @@ export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: 
             </option>
           ))}
         </select>
+        <select value={poolType} onChange={(e) => setPoolType(e.target.value as PoolTypeName)} disabled={busy}>
+          <option value="matchWinner">Match Winner (1X2)</option>
+          <option value="totalGoals">Total Goals O/U</option>
+        </select>
+        {poolType === "totalGoals" && (
+          <select value={lineX2} onChange={(e) => setLineX2(Number(e.target.value))} disabled={busy}>
+            {LINES.map((l) => (
+              <option key={l.lineX2} value={l.lineX2}>
+                Line {l.label}
+              </option>
+            ))}
+          </select>
+        )}
         <button onClick={create} disabled={busy || !client}>
-          {busy ? "Creating…" : "Create Match Winner Pool"}
+          {busy ? "Creating…" : "Create Pool"}
         </button>
       </div>
       {error && <p className="error">{error}</p>}

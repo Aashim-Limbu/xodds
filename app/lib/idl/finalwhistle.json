@@ -242,6 +242,10 @@
         {
           "name": "kickoff_ts",
           "type": "i64"
+        },
+        {
+          "name": "line_x2",
+          "type": "u16"
         }
       ]
     },
@@ -545,8 +549,8 @@
     },
     {
       "code": 6009,
-      "name": "UnsupportedPoolType",
-      "msg": "This Pool Type cannot be settled by the 1X2 predicate"
+      "name": "InvalidLine",
+      "msg": "Over/Under Line must be a half-integer (odd when stored as line_x2)"
     },
     {
       "code": 6010,
@@ -632,6 +636,14 @@
                 "name": "PoolType"
               }
             }
+          },
+          {
+            "name": "line_x2",
+            "docs": [
+              "The Over/Under Line times two (a half-integer, so always odd) for line-based Pool",
+              "Types; 0 for MatchWinner. Storing ×2 keeps it an integer and makes a tie impossible."
+            ],
+            "type": "u16"
           },
           {
             "name": "nonce",
@@ -804,6 +816,9 @@
         "variants": [
           {
             "name": "MatchWinner"
+          },
+          {
+            "name": "TotalGoals"
           }
         ]
       }

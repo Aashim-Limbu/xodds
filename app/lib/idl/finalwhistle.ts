@@ -248,6 +248,10 @@ export type Finalwhistle = {
         {
           "name": "kickoffTs",
           "type": "i64"
+        },
+        {
+          "name": "lineX2",
+          "type": "u16"
         }
       ]
     },
@@ -551,8 +555,8 @@ export type Finalwhistle = {
     },
     {
       "code": 6009,
-      "name": "unsupportedPoolType",
-      "msg": "This Pool Type cannot be settled by the 1X2 predicate"
+      "name": "invalidLine",
+      "msg": "Over/Under Line must be a half-integer (odd when stored as line_x2)"
     },
     {
       "code": 6010,
@@ -638,6 +642,14 @@ export type Finalwhistle = {
                 "name": "poolType"
               }
             }
+          },
+          {
+            "name": "lineX2",
+            "docs": [
+              "The Over/Under Line times two (a half-integer, so always odd) for line-based Pool",
+              "Types; 0 for MatchWinner. Storing ×2 keeps it an integer and makes a tie impossible."
+            ],
+            "type": "u16"
           },
           {
             "name": "nonce",
@@ -810,6 +822,9 @@ export type Finalwhistle = {
         "variants": [
           {
             "name": "matchWinner"
+          },
+          {
+            "name": "totalGoals"
           }
         ]
       }
