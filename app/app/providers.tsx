@@ -26,7 +26,12 @@ export function Providers({ children }: { children: React.ReactNode }) {
       config={{
         loginMethods: ["email", "google"],
         appearance: { theme: "dark", walletChainType: "solana-only" },
-        embeddedWallets: { createOnLogin: "users-without-wallets", showWalletUIs: false },
+        // Solana embedded wallet auto-creation lives under embeddedWallets.solana
+        // (the top-level createOnLogin is for Ethereum).
+        embeddedWallets: {
+          showWalletUIs: false,
+          solana: { createOnLogin: "users-without-wallets" },
+        },
         solanaClusters: [{ name: "devnet", rpcUrl: RPC_URL }],
       }}
     >
