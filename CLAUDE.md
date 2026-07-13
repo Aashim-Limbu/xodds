@@ -11,5 +11,3 @@ Before any frontend/design work, read [`PRODUCT.md`](./PRODUCT.md) — it is the
 - **Anti-references:** not a cold trading terminal, not generic SaaS.
 - **Principles:** crypto is invisible · fun on top, proof underneath · the Proof Receipt is the hero · the Group is first-class · earn trust on every money move.
 - **Accessibility:** WCAG AA + honor `prefers-reduced-motion`; Pool state is never signalled by color alone.
-
-Design tooling: the `impeccable` skill is set up (`/impeccable <command>`). `DESIGN.md` is not yet written — run `/impeccable document` to capture the current visual system.

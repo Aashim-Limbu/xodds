@@ -13,8 +13,8 @@ export default function PoolPage({ params }: { params: Promise<{ pool: string }>
   return (
     <div className="container">
       <div className="header">
-        <Link href="/" className="brand" style={{ textDecoration: "none" }}>
-          Final<span>Whistle</span>
+        <Link href="/" className="brand">
+          <span>x</span>Odds
         </Link>
         <SignIn />
       </div>

@@ -25,9 +25,11 @@ export function Feed({ feed }: { feed: FeedApi }) {
 
   return (
     <div className="panel stack" style={{ gap: 12 }}>
-      <div className="row between">
-        <h2 style={{ margin: 0 }}>Feed</h2>
-        <span className="odds">{feed.present.length} watching{feed.ready ? "" : " · connecting…"}</span>
+      <div className="chat-header">
+        <h2>Live Chat</h2>
+        <span className="chat-presence">
+          👀 {feed.present.length} watching{feed.ready ? "" : " · connecting…"}
+        </span>
       </div>
 
       <div className="feed-scroll stack">

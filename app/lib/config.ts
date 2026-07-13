@@ -19,6 +19,12 @@ export const PROGRAM_ID = new PublicKey(
   process.env.NEXT_PUBLIC_PROGRAM_ID || "3twLVgxWB3fF6EkHGoNzH4ax8sH82fz2KZjgjwg4y7fs",
 );
 
+// The txline_mock scores-publisher program (ADR-0008). A score root is only trusted because its
+// account is owned by this program — the Proof Receipt links to it so anyone can check the owner.
+export const TXLINE_PROGRAM_ID = new PublicKey(
+  process.env.NEXT_PUBLIC_TXLINE_PROGRAM_ID || "7yYhmy4x1HLW9yDUKFAewbbcigZ9DtSoMFBA6xswAA2J",
+);
+
 /** The USDC-like mint Pools escrow. Required to create/enter a Pool. */
 export function usdcMint(): PublicKey {
   return new PublicKey(required("NEXT_PUBLIC_USDC_MINT", process.env.NEXT_PUBLIC_USDC_MINT));

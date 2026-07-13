@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
+import { friendlyError } from "@/lib/errors";
 
 /** Self-serve devnet funding: a little SOL for fees + 100 test USDC, into the User's
  * embedded wallet, so they can create/enter Pools. Calls the server-side faucet route. */
@@ -24,7 +25,7 @@ export function GetTestFunds() {
       if (!res.ok) throw new Error(body.error ?? "faucet failed");
       setState("done");
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
       setState("idle");
     }
   }
