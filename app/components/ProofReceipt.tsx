@@ -1,8 +1,10 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { type PoolTypeName, type SettlementReceipt, toHex } from "@/lib/anchorClient";
+import { verifyScoreProof } from "@/lib/proof";
+import { scoresRootPda } from "@/lib/pdas";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { fixtureById, poolOutcomeLabels } from "@/lib/fixtures";
 
@@ -44,6 +46,13 @@ export function ProofReceipt({
     };
   }, [client, address]);
 
+  // Re-derive the score root from the receipt's own values, right here in the browser. If it
+  // reproduces the root TxLINE published, these exact stats are what settle() proved against.
+  const check = useMemo(
+    () => (receipt ? verifyScoreProof(fixtureId, receipt.proven, receipt.merklePath, receipt.scoreRoot) : null),
+    [receipt, fixtureId],
+  );
+
   if (loading) return <div className="panel muted">Building Proof Receipt…</div>;
   if (!receipt) return <div className="panel muted">No settlement proof found for this Pool.</div>;
 
@@ -53,59 +62,102 @@ export function ProofReceipt({
   const explorer = `https://explorer.solana.com/tx/${receipt.signature}?cluster=devnet`;
 
   return (
-    <div className="panel receipt">
-      <div className="row between">
-        <h2 style={{ margin: 0 }}>Proof Receipt</h2>
-        <span className="badge settled">Proven</span>
+    <div className="receipt-split">
+      <div className="proven-panel">
+        <span className="sticker" aria-hidden="true">🏆</span>
+        <span className="proven-word">Proven</span>
       </div>
-      <p className="muted" style={{ marginTop: 6 }}>
-        Nobody, including us, chose this outcome. It was proven on-chain from TxLINE&rsquo;s Score
-        Proof — verify every value below yourself.
-      </p>
 
-      <div className="receipt-grid">
-        <div>
-          <div className="muted receipt-label">Winning Outcome</div>
-          <div className="receipt-strong">{labels[receipt.winningOutcome]}</div>
+      <div className="receipt-body">
+        <h2 style={{ margin: 0 }}>Proof Receipt</h2>
+        {fixture && (
+          <div className="score-line">
+            <span className="receipt-label">Final score</span>
+            <span>{fixture.home}</span>
+            <span className="score-chip">{p.homeGoals}&ndash;{p.awayGoals}</span>
+            <span>{fixture.away}</span>
+          </div>
+        )}
+        <div className="receipt-strong" style={{ textTransform: "uppercase" }}>
+          {labels[receipt.winningOutcome]} wins
         </div>
-        <div>
-          <div className="muted receipt-label">Proven score</div>
-          <div className="receipt-strong">
-            {p.homeGoals}&ndash;{p.awayGoals}
+        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+          Nobody, including us, chose this outcome. It was proven on-chain from TxLINE&rsquo;s Score
+          Proof — and re-checked right here in your browser.
+        </p>
+
+        {check && (
+          <div className={`verify ${check.ok ? "verify-ok" : "verify-fail"}`} role="status">
+            <span className="verify-mark" aria-hidden="true">{check.ok ? "✓" : "✕"}</span>
+            <div>
+              <div className="verify-title">
+                {check.ok ? "Verified in your browser" : "Verification failed"}
+              </div>
+              <div className="verify-sub">
+                {check.ok
+                  ? "The values below were hashed on your device and reproduce TxLINE’s published root exactly — no trust in us required."
+                  : "These values do not reproduce the published root. Do not trust this receipt."}
+              </div>
+            </div>
+          </div>
+        )}
+
+        <div className="receipt-grid">
+          <div>
+            <div className="receipt-label">Proven score</div>
+            <div className="receipt-strong">{p.homeGoals}&ndash;{p.awayGoals}</div>
+          </div>
+          <div>
+            <div className="receipt-label">Winning Outcome</div>
+            <div className="receipt-strong">{labels[receipt.winningOutcome]}</div>
+          </div>
+          <div>
+            <div className="receipt-label">Corners (H/A)</div>
+            <div>{p.homeCorners} / {p.awayCorners}</div>
+          </div>
+          <div>
+            <div className="receipt-label">Cards (H/A)</div>
+            <div>{p.homeCards} / {p.awayCards}</div>
           </div>
         </div>
-        <div>
-          <div className="muted receipt-label">Corners (H/A)</div>
-          <div>{p.homeCorners} / {p.awayCorners}</div>
-        </div>
-        <div>
-          <div className="muted receipt-label">Cards (H/A)</div>
-          <div>{p.homeCards} / {p.awayCards}</div>
-        </div>
-      </div>
 
-      <div className="stack" style={{ marginTop: 14, gap: 10 }}>
-        <div>
-          <div className="muted receipt-label">TxLINE score root (verified against)</div>
-          <code className="mono">{toHex(receipt.scoreRoot)}</code>
-        </div>
-        <div>
-          <div className="muted receipt-label">Merkle path ({receipt.merklePath.length} node{receipt.merklePath.length === 1 ? "" : "s"})</div>
-          <div className="stack" style={{ gap: 2 }}>
+        <div className="stack" style={{ gap: 10 }}>
+          <div className="receipt-label" style={{ marginBottom: -6 }}>⛓ On-chain verification</div>
+          <div>
+            <div className="receipt-label">TxLINE score root (verified against)</div>
+            <code className="mono receipt-bar">{toHex(receipt.scoreRoot)}</code>
+            <a
+              className="mono receipt-bar"
+              style={{ display: "block", marginTop: 6 }}
+              href={`https://explorer.solana.com/address/${scoresRootPda(fixtureId).toBase58()}?cluster=devnet`}
+              target="_blank"
+              rel="noreferrer"
+            >
+              Published in a TxLINE-owned account ↗
+            </a>
+            {check && !check.ok && (
+              <>
+                <div className="receipt-label" style={{ marginTop: 6 }}>Root recomputed here (does not match)</div>
+                <code className="mono receipt-bar" style={{ color: "var(--danger)" }}>{toHex(check.computedRoot)}</code>
+              </>
+            )}
+          </div>
+          <div>
+            <div className="receipt-label">Merkle path ({receipt.merklePath.length} node{receipt.merklePath.length === 1 ? "" : "s"})</div>
             {receipt.merklePath.length === 0 ? (
-              <span className="muted">— (the Fixture leaf is the root)</span>
+              <span className="muted" style={{ fontSize: 13 }}>— (the Fixture leaf is the root)</span>
             ) : (
               receipt.merklePath.map((node, i) => (
-                <code className="mono" key={i}>{short(toHex(node))}</code>
+                <code className="mono receipt-bar" key={i}>{short(toHex(node))}</code>
               ))
             )}
           </div>
-        </div>
-        <div>
-          <div className="muted receipt-label">Settlement transaction</div>
-          <a className="mono" href={explorer} target="_blank" rel="noreferrer">
-            {short(receipt.signature)} ↗
-          </a>
+          <div>
+            <div className="receipt-label">Settlement transaction</div>
+            <a className="mono receipt-bar" href={explorer} target="_blank" rel="noreferrer">
+              {short(receipt.signature)} ↗
+            </a>
+          </div>
         </div>
       </div>
     </div>

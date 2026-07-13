@@ -7,6 +7,7 @@ import { useFeed } from "@/lib/feed";
 import type { PoolAccount, PoolState } from "@/lib/anchorClient";
 import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
 import { decimalOdds, formatUsdc, parseUsdc } from "@/lib/format";
+import { friendlyError } from "@/lib/errors";
 import { Feed } from "./Feed";
 import { ProofReceipt } from "./ProofReceipt";
 
@@ -45,7 +46,9 @@ export function PoolView({ address }: { address: string }) {
   const [amount, setAmount] = useState("5");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const autoClaimed = useRef(false);
+  const [claimStatus, setClaimStatus] = useState<"idle" | "claiming" | "paid">("idle");
+  const [paidAmount, setPaidAmount] = useState<bigint | null>(null);
+  const claimInFlight = useRef(false);
   const lastState = useRef<PoolState | null>(null);
 
   const refresh = useCallback(async () => {
@@ -55,7 +58,7 @@ export function PoolView({ address }: { address: string }) {
       setPool(p);
       setMyEntries(await Promise.all([0, 1, 2].map((o) => client.fetchEntryAmount(poolKey, o))));
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
     }
   }, [client, address]);
 
@@ -81,17 +84,39 @@ export function PoolView({ address }: { address: string }) {
     lastState.current = pool.state;
   }, [pool, feed, address]);
 
-  // Auto-claim the winning payout once the Pool Settles (ADR — "feels automatic").
-  useEffect(() => {
-    if (!client || !pool || autoClaimed.current) return;
-    if (pool.state === "settled" && pool.winningOutcome !== null && myEntries[pool.winningOutcome]) {
-      autoClaimed.current = true;
-      client
-        .claimPayout(poolKey, pool.winningOutcome)
-        .then(refresh)
-        .catch((e) => setError(e instanceof Error ? e.message : String(e)));
+  // Claim the winning payout. Used by both the auto-claim effect and the manual button, so a
+  // flaky RPC leaves a retry affordance instead of stranding the winner. Only latches on success.
+  const doClaim = useCallback(async () => {
+    if (!client || !pool || pool.state !== "settled" || pool.winningOutcome === null) return;
+    const outcome = pool.winningOutcome;
+    const myEntry = myEntries[outcome];
+    if (!myEntry || claimInFlight.current) return;
+    claimInFlight.current = true;
+    setClaimStatus("claiming");
+    setError(null);
+    const total = pool.outcomeTotals[outcome];
+    // Parimutuel payout = myEntry / winning_total × pot — captured before the claim closes the Entry.
+    const payout = total > 0n ? (myEntry * pool.pot) / total : myEntry;
+    try {
+      await client.claimPayout(poolKey, outcome);
+      setPaidAmount(payout);
+      setClaimStatus("paid");
+      feed.postSystem(`won:${address}`, `🏆 ${displayName} won $${formatUsdc(payout)}`);
+      await refresh();
+    } catch (e) {
+      setClaimStatus("idle"); // surface the manual "Claim" button to retry
+      setError(friendlyError(e));
+    } finally {
+      claimInFlight.current = false;
     }
-  }, [client, pool, myEntries, refresh, address]);
+  }, [client, pool, myEntries, refresh, address, feed, displayName]);
+
+  // Auto-claim once the Pool Settles (ADR — "feels automatic"); the button below covers retries.
+  useEffect(() => {
+    if (!pool || pool.state !== "settled" || pool.winningOutcome === null) return;
+    if (!myEntries[pool.winningOutcome] || claimStatus !== "idle" || claimInFlight.current) return;
+    doClaim();
+  }, [pool, myEntries, claimStatus, doClaim]);
 
   if (!pool) return <div className="panel muted">Loading Pool…</div>;
 
@@ -99,6 +124,11 @@ export function PoolView({ address }: { address: string }) {
   const labels = poolOutcomeLabels(pool.poolType, pool.lineX2, fixture);
   const probs = fixture?.referenceProbabilities ?? [0, 0, 0];
   const showOdds = pool.poolType === "matchWinner"; // the mock only carries 1X2 Reference Odds
+
+  const winning = pool.winningOutcome;
+  const myWinEntry = pool.state === "settled" && winning !== null ? myEntries[winning] : null;
+  const winTotal = winning !== null ? pool.outcomeTotals[winning] : 0n;
+  const myPayout = myWinEntry && winTotal > 0n ? (myWinEntry * pool.pot) / winTotal : myWinEntry ?? 0n;
 
   async function act(fn: () => Promise<unknown>): Promise<boolean> {
     setBusy(true);
@@ -108,7 +138,7 @@ export function PoolView({ address }: { address: string }) {
       await refresh();
       return true;
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
       return false;
     } finally {
       setBusy(false);
@@ -125,74 +155,95 @@ export function PoolView({ address }: { address: string }) {
   }
 
   return (
-    <div className="stack">
-      <div className="panel">
-        <div className="row between">
-          <h1>{fixture ? `${fixture.home} vs ${fixture.away}` : `Fixture ${pool.fixtureId}`}</h1>
-          <span className={`badge ${pool.state}`}>{STATE_LABEL[pool.state]}</span>
-        </div>
-        <div className="muted">{poolTypeLabel(pool.poolType, pool.lineX2)} · Fixture {pool.fixtureId.toString()}</div>
-        <div className="row between" style={{ marginTop: 14 }}>
-          <div>
-            <div className="muted" style={{ fontSize: 13 }}>Pot</div>
-            <div className="pot">${formatUsdc(pool.pot)}</div>
+    <div className="pool-layout">
+      <div className="stack" style={{ gap: 0 }}>
+        <div style={{ marginBottom: 24 }}>
+          <div className="match-banner">
+            <div className="stack" style={{ gap: 10 }}>
+              <div className="row" style={{ gap: 14 }}>
+                <span className="sticker tilt-l" aria-hidden="true" style={{ fontSize: 52 }}>🏆</span>
+                <div className="match-name">
+                  {fixture ? `${fixture.home} vs ${fixture.away}` : `Fixture ${pool.fixtureId}`}
+                </div>
+              </div>
+              <div className="row" style={{ flexWrap: "wrap" }}>
+                <span className="chip-id">
+                  {poolTypeLabel(pool.poolType, pool.lineX2)} · FX-{pool.fixtureId.toString()}
+                </span>
+                <span className={`badge ${pool.state}`}>{STATE_LABEL[pool.state]}</span>
+              </div>
+            </div>
+            <div className="prize-tag">
+              <div className="label">TOTAL PRIZE POOL</div>
+              <div className="pot">${formatUsdc(pool.pot)}</div>
+            </div>
           </div>
           {pool.state === "void" && (
-            <div className="error">
+            <p className="error" style={{ marginBottom: 0 }}>
               Void — {pool.voidReason ? VOID_REASON_LABEL[pool.voidReason] : "no paying Outcome"}. Every
               Entry is refunded in full.
-            </div>
+            </p>
           )}
         </div>
-      </div>
 
-      <div className="panel stack">
-        <h2>Outcomes</h2>
-        {labels.map((label, o) => {
-          const isWinner = pool.state === "settled" && pool.winningOutcome === o;
-          const mine = myEntries[o];
-          return (
-            <div key={o} className={`outcome${isWinner ? " win" : ""}`}>
-              <div className="stack" style={{ gap: 2 }}>
-                <strong>{label}</strong>
-                <span className="odds">
-                  {showOdds ? `Reference Odds ${decimalOdds(probs[o])} · ` : ""}Entries $
-                  {formatUsdc(pool.outcomeTotals[o])}
-                  {mine ? ` · yours $${formatUsdc(mine)}` : ""}
-                </span>
-              </div>
-              {pool.state === "open" ? (
-                <button className="secondary" disabled={busy || !client} onClick={() => back(o)}>
-                  Back ${amount}
-                </button>
-              ) : (
-                <span />
-              )}
-              {pool.state === "void" && mine ? (
-                <button disabled={busy || !client} onClick={() => act(() => client!.claimRefund(poolKey, o))}>
-                  Refund ${formatUsdc(mine)}
-                </button>
-              ) : (
-                <span />
-              )}
-            </div>
-          );
-        })}
-        {pool.state === "open" && (
-          <div className="row">
-            <span className="muted" style={{ fontSize: 13 }}>Entry amount (USDC)</span>
-            <input value={amount} onChange={(e) => setAmount(e.target.value)} style={{ width: 90 }} />
+        <div className="stack" style={{ gap: 14, marginBottom: 20 }}>
+          <div className="outcome-grid">
+            {labels.map((label, o) => {
+              const isWinner = pool.state === "settled" && pool.winningOutcome === o;
+              const mine = myEntries[o];
+              return (
+                <div key={o} className={`outcome${isWinner ? " win" : ""}`}>
+                  {isWinner && <span className="badge settled">Winner</span>}
+                  <span className="outcome-label">{label}</span>
+                  <span className="odds">
+                    {showOdds ? `Odds ${decimalOdds(probs[o])} · ` : ""}${formatUsdc(pool.outcomeTotals[o])} in
+                    {mine ? ` · yours $${formatUsdc(mine)}` : ""}
+                  </span>
+                  {pool.state === "open" && (
+                    <button disabled={busy || !client} onClick={() => back(o)}>
+                      Back ${amount}
+                    </button>
+                  )}
+                  {pool.state === "void" && mine ? (
+                    <button disabled={busy || !client} onClick={() => act(() => client!.claimRefund(poolKey, o))}>
+                      Refund ${formatUsdc(mine)}
+                    </button>
+                  ) : null}
+                </div>
+              );
+            })}
           </div>
-        )}
-        {pool.state === "settled" && pool.winningOutcome !== null && myEntries[pool.winningOutcome] && (
-          <p className="entry-note">Your payout is being claimed automatically…</p>
-        )}
-        {error && <p className="error">{error}</p>}
-      </div>
+          {pool.state === "open" && (
+            <div className="panel row" style={{ marginBottom: 0 }}>
+              <label className="row" style={{ gap: 10 }}>
+                <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Entry amount (USDC)</span>
+                <input
+                  value={amount}
+                  inputMode="decimal"
+                  onChange={(e) => setAmount(e.target.value)}
+                  style={{ width: 90 }}
+                />
+              </label>
+            </div>
+          )}
+          {claimStatus === "paid" && (
+            <p className="entry-note">✅ Paid ${formatUsdc(paidAmount ?? 0n)} to your wallet.</p>
+          )}
+          {myWinEntry && claimStatus === "claiming" && (
+            <p className="entry-note">🎉 Claiming your ${formatUsdc(myPayout)} payout…</p>
+          )}
+          {myWinEntry && claimStatus === "idle" && (
+            <button disabled={busy || !client} onClick={doClaim}>
+              Claim ${formatUsdc(myPayout)}
+            </button>
+          )}
+          {error && <p className="error">{error}</p>}
+        </div>
 
-      {pool.state === "settled" && (
-        <ProofReceipt address={address} fixtureId={pool.fixtureId} poolType={pool.poolType} lineX2={pool.lineX2} />
-      )}
+        {pool.state === "settled" && (
+          <ProofReceipt address={address} fixtureId={pool.fixtureId} poolType={pool.poolType} lineX2={pool.lineX2} />
+        )}
+      </div>
 
       <Feed feed={feed} />
     </div>

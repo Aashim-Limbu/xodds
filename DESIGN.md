@@ -1,128 +1,113 @@
 ---
-name: FinalWhistle
-description: Bet with friends on the World Cup, settled by proof — a floodlit-night-match dark UI.
+name: xOdds
+description: Bet with friends on the World Cup, settled by proof — a neo-brutalist yellow sticker-book UI.
 colors:
-  night-navy: "#0b0f14"
-  panel: "#141b24"
-  panel-raised: "#1c2530"
-  line: "#26313d"
-  ink: "#e6edf3"
-  muted: "#8b98a5"
-  pitch-green: "#35d07f"
-  floodlight-blue: "#4aa3ff"
-  card-red: "#ff6b6b"
-  on-green: "#04120a"
+  cream: "#fff8ef"
+  paper: "#ffffff"
+  cream-2: "#f6edda"
+  ink: "#1f1b10"
+  muted: "#4d4632"
+  yellow: "#ffd600"
+  yellow-deep: "#e9c400"
+  blue: "#0046fa"
+  green: "#00873c"
+  card-red: "#d32f2f"
+  tint-open: "#c8f7d8"
+  tint-locked: "#d1d7ff"
+  tint-settled: "#e2e2e2"
+  tint-void: "#ffdad6"
 typography:
   display:
-    fontFamily: "ui-sans-serif, system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif"
-    fontSize: "28px"
-    fontWeight: 700
-    lineHeight: 1.1
-    letterSpacing: "normal"
-    fontFeature: "tabular-nums"
-  headline:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
-    fontSize: "22px"
-    fontWeight: 700
+    fontFamily: "Anybody, sans-serif"
+    fontWeight: 900
+    fontStyle: italic
     letterSpacing: "-0.02em"
-  title:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
-    fontSize: "16px"
-    fontWeight: 700
+    transform: uppercase
   body:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
+    fontFamily: "Hanken Grotesk, sans-serif"
     fontSize: "14px"
-    fontWeight: 400
+    fontWeight: 500
     lineHeight: 1.5
   label:
-    fontFamily: "ui-sans-serif, system-ui, sans-serif"
-    fontSize: "12px"
-    fontWeight: 700
+    fontFamily: "Hanken Grotesk, sans-serif"
+    fontSize: "13px"
+    fontWeight: 800
     letterSpacing: "0.04em"
+    transform: uppercase
   mono:
-    fontFamily: "ui-monospace, SFMono-Regular, Menlo, monospace"
+    fontFamily: "JetBrains Mono, monospace"
     fontSize: "12px"
+    fontWeight: 600
 rounded:
-  sm: "10px"
+  sm: "8px"
   md: "14px"
   pill: "999px"
-spacing:
-  sm: "8px"
-  md: "16px"
-  lg: "24px"
+shadows:
+  sm: "3px 3px 0 0 ink"
+  md: "4px 4px 0 0 ink"
+  lg: "8px 8px 0 0 ink"
 components:
   button-primary:
-    backgroundColor: "{colors.pitch-green}"
-    textColor: "{colors.on-green}"
+    backgroundColor: "{colors.ink}"
+    textColor: "#ffffff"
+    border: "3px solid {colors.ink}"
     rounded: "{rounded.sm}"
-    padding: "10px 14px"
+    shadow: "{shadows.sm}"
   button-secondary:
-    backgroundColor: "{colors.panel-raised}"
+    backgroundColor: "{colors.paper}"
     textColor: "{colors.ink}"
+    border: "3px solid {colors.ink}"
     rounded: "{rounded.sm}"
-    padding: "10px 14px"
-  input:
-    backgroundColor: "{colors.panel-raised}"
-    textColor: "{colors.ink}"
-    rounded: "{rounded.sm}"
-    padding: "9px 11px"
+    shadow: "{shadows.sm}"
   panel:
-    backgroundColor: "{colors.panel}"
-    textColor: "{colors.ink}"
+    backgroundColor: "{colors.paper}"
+    border: "3px solid {colors.ink}"
     rounded: "{rounded.md}"
-    padding: "18px"
-  badge-open:
-    backgroundColor: "rgba(53,208,127,0.15)"
-    textColor: "{colors.pitch-green}"
+    shadow: "{shadows.md}"
+  hero:
+    backgroundColor: "{colors.yellow}"
+    border: "4px solid {colors.ink}"
+    rounded: "{rounded.md}"
+    shadow: "{shadows.lg}"
+  badge:
+    border: "2px solid {colors.ink}"
     rounded: "{rounded.pill}"
-  badge-locked:
-    backgroundColor: "rgba(74,163,255,0.15)"
-    textColor: "{colors.floodlight-blue}"
-    rounded: "{rounded.pill}"
-  badge-void:
-    backgroundColor: "rgba(255,107,107,0.15)"
-    textColor: "{colors.card-red}"
-    rounded: "{rounded.pill}"
+    font: "{typography.mono}"
+    textColor: "{colors.ink}"
 ---
 
 ## Overview
 
-**The Floodlit Night Match.** The stadium after dark: a deep navy night, the bright glow of the screen a group of mates crowds around, and pitch-green as the colour of "we won." The system is a flat, tonal **dark UI** — surfaces are distinguished by lightness and hairline borders, never shadow — with a small set of bright signal colours doing all the talking. It should feel social and alive (matchday, group-chat energy), with the trust machinery kept quiet until settlement, when the Proof Receipt lights up as the payoff.
+**The Sticker Book Matchday.** A cream paper page with a faint ink dot grid, white cards with thick ink borders and hard offset shadows, and bright yellow hero surfaces that carry the loud moments. The energy is BeReal/Duolingo group-chat matchday — playful, hand-made, a little irreverent — with the trust machinery revealed at settlement, where the Proof Receipt is a split-panel hero: a yellow side shouting **PROVEN** under a trophy sticker, and a paper receipt side with the verifiable facts.
 
-It should **not** feel like a cold trading terminal (dense grids, unfriendly data walls) or generic SaaS (identical icon-and-heading cards, gradient accents). Today the implementation is restrained and utilitarian — honest for an MVP but plainer than the brand wants; future work pushes it toward more matchday warmth and a celebratory settlement moment, without breaking the flat-dark foundation.
+Source of truth: the Stitch project "FinalWhistle Social Betting App" (rebrand direction **xOdds**) and `brand.md`. It should **not** feel like a cold trading terminal or generic SaaS — no blur shadows, no gradient decoration, no identical icon-card grids.
 
 ## Colors
 
-A dark tonal base carries three signal colours mapped to meaning; colour is never the *only* signal (every Pool state also carries a text label, for AA compliance).
-
-- **Night Navy** `#0b0f14` — the body; the stadium at night. **Panel** `#141b24` and **Panel Raised** `#1c2530` are the two tonal surface steps above it; **Line** `#26313d` is the hairline border that separates them.
-- **Ink** `#e6edf3` is primary text (AA on every surface); **Muted** `#8b98a5` is secondary/label text — use it only where AA holds, never for body copy on the darkest surfaces.
-- **Pitch Green** `#35d07f` — the primary accent: primary actions, the winning Outcome, Open state, "we won." On green, text is near-black **On-Green** `#04120a`.
-- **Floodlight Blue** `#4aa3ff` — the secondary/info accent: links, the Locked state, Feed authors.
-- **Card Red** `#ff6b6b` — Void and errors only.
-
-Semantic state ramp (Pool lifecycle): Open = green, Locked = blue, Settled = neutral ink, Void = red — each as a 15%-alpha pill with the matching text colour.
+- **Cream** `#fff8ef` is the page; **Paper** `#ffffff` is every card; **Cream-2** `#f6edda` is the recessed fill (chat bubbles, muted containers). **Ink** `#1f1b10` is text, borders, shadows, and primary buttons.
+- **Yellow** `#ffd600` is the brand surface: heroes, highlights, the winning Outcome card, receipt data bars. Ink text on yellow only.
+- **Blue** `#0046fa` = links, odds, chat authors, focus rings, Locked. **Green** `#00873c` = Open, verified. **Red** `#d32f2f` = Void, errors.
+- Pool state chips are tinted pills with a 2px ink border and an uppercase mono text label — open `#c8f7d8`, locked `#d1d7ff`, settled `#e2e2e2`, void `#ffdad6`. Color is never the only signal (AA).
 
 ## Typography
 
-**One family** — a system sans stack (`ui-sans-serif, system-ui, …`) — carries everything; product UI doesn't need a display/body pairing. A monospace stack (`ui-monospace, …`) is reserved for one job: the Proof Receipt's hashes, roots, and transaction ids. The scale is fixed (rem/px, not fluid): display 28px/700 for the pot and big numbers, headline 22px/700 (tight `-0.02em`), title 16px/700, body 14px, label 12px/700 tracked `0.04em` uppercase for badges. **Tabular numerals** on all money and numeric data (pot, odds, entries) so figures align. Weight and size carry hierarchy — no colour-clip or decorative type.
+Three families, three jobs. **Anybody 900 italic uppercase** is the display voice — headlines, group names, the match banner, the pot, "PROVEN". **Hanken Grotesk** carries all body/UI text (buttons at 800 uppercase). **JetBrains Mono** is the "system-generated" voice: IDs, state chips, money meta rows, hashes, roots, tx signatures. Tabular numerals on money.
 
 ## Elevation
 
-**Flat, tonal — no shadows.** Depth is expressed purely by surface lightness (Night Navy → Panel → Panel Raised) plus 1px `line` borders. Panels sit at `md` radius (14px), interactive controls at `sm` (10px), badges at `pill`. The single exception to flatness is the **Proof Receipt**, which earns a pitch-green border and a faint top-down green wash (`linear-gradient` at ~6% alpha) to mark it as the hero surface — a glow, not a card shadow.
+Flat fills + borders + hard offset shadows, no blur ever. Panels: 3px ink border, `4px 4px 0` shadow, 14px radius. Heroes: 4px border, `8px 8px 0` shadow. Buttons: 3px border, `3px 3px 0` shadow; hover *presses* — translate(2px,2px) and the shadow shrinks. Decorative stickers (emoji: 🏆 ⚽ 🏟️) sit rotated ±6–8° for the hand-placed feel.
 
 ## Components
 
-- **Buttons.** Primary = pitch-green fill, near-black text, `sm` radius. Secondary = Panel Raised fill with a `line` border and ink text. Disabled = 0.5 opacity. *(Gap: hover/active/focus states are not yet defined — add them; every interactive control needs default/hover/focus/active/disabled.)*
-- **Inputs & selects.** Panel Raised fill, `line` border, `sm` radius, ink text. Same vocabulary across every form control.
-- **Panel.** The workhorse surface: Panel fill, `line` border, `md` radius, `18px` padding — used for the Pool header, Outcomes list, Feed, and Proof Receipt.
-- **Badge.** Pill, 12px tracked uppercase, one per Pool state (open/locked/settled/void), 15%-alpha background of its signal colour.
-- **Outcome row.** A bordered `sm`-radius row (label + odds/Entries + action); the winning Outcome gets a pitch-green border.
-- **Pot.** Display-size tabular number — the emotional centre of the Pool header.
-- **Feed.** Compact message list (author in Floodlight Blue), italic muted system posts, emoji reaction buttons, presence count.
+- **Buttons.** Primary = ink fill, white text, uppercase. Secondary = paper fill, ink text. Hover = press-toward-shadow. Focus = 3px blue outline. Disabled = 0.5 opacity, no press.
+- **Hero.** Yellow banner with 4px border: welcome pitch, the Group banner (name in display type + mono ID chip), the match banner (fixture name as an ink ribbon on yellow, prize tag rotated 2°).
+- **Pool cards.** Grid of paper cards: display-type fixture title, state chip, dashed-rule mono meta rows (total pot, market), ink JOIN POOL bar. Whole card presses on hover.
+- **Outcome cards.** Centered paper cards in a grid: display label, mono odds/entries line, full-width BACK button. Winner = yellow fill + "WINNER" chip.
+- **Proof Receipt (the hero).** Split panel: yellow left with rotated white-on-ink-outline "PROVEN" + trophy sticker; right side has the final-score line (score in a yellow chip), the browser-verification banner (green/red tint), a bordered stats grid, and yellow mono bars for root / Merkle path / settlement tx.
+- **Live Chat.** Panel with an ink header bar ("LIVE CHAT" in yellow + presence count), bordered cream message bubbles (author in blue), mono system lines, emoji reaction buttons.
 
 ## Do's and Don'ts
 
-**Do** keep the Pool-state colour mapping consistent everywhere (green→Open, blue→Locked, neutral→Settled, red→Void) and always pair it with a text label. **Do** use tabular numerals for every money value. **Do** treat the Proof Receipt as the one surface allowed to glow — it's the hero. **Do** keep one button/input/badge vocabulary across all screens.
+**Do** keep ink borders + hard shadows on every raised surface. **Do** pair every state color with its text chip. **Do** use mono for anything machine-generated. **Do** let yellow carry celebration (winner, receipt, heroes) and nothing else.
 
-**Don't** rely on colour alone for state (AA). **Don't** add card shadows, glassmorphism, or gradient text — the system is flat and tonal. **Don't** let muted grey carry body copy on the darkest surfaces (contrast). **Don't** grow toward terminal density or identical SaaS card grids. **Don't** ship interactive controls without hover/focus/active states.
+**Don't** use blur shadows, gradients, or glassmorphism. **Don't** put body copy in the display font. **Don't** signal Pool state by color alone. **Don't** drift back to dark-terminal or generic SaaS card grids.

@@ -3,6 +3,7 @@
 import { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
+import { friendlyError } from "@/lib/errors";
 import { FIXTURES } from "@/lib/fixtures";
 import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
 import type { PoolTypeName } from "@/lib/anchorClient";
@@ -38,7 +39,7 @@ export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: 
       await client.createPool(group, fixture.fixtureId, nonce, kickoff, poolType, poolType === "totalGoals" ? lineX2 : 0);
       onCreated();
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError(friendlyError(e));
     } finally {
       setBusy(false);
     }

@@ -31,6 +31,3 @@ test-ledger/
 
 # TS incremental build info
 *.tsbuildinfo
-
-# Impeccable live-mode local state
-.impeccable/
