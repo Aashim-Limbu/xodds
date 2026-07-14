@@ -30,6 +30,8 @@ export class Keeper {
   /** One pass over every Pool. Returns the actions taken (for logging/tests). */
   async tick(): Promise<Array<{ pool: string; action: KeeperAction }>> {
     const pools = await this.program.account.pool.all();
+    // Warm any network-backed TxLINE cache (RealTxLine) so result()/stats() read synchronously.
+    await this.txline.refresh?.(pools.map((p) => BigInt(p.account.fixtureId.toString())));
     const now = this.now();
     const taken: Array<{ pool: string; action: KeeperAction }> = [];
 
