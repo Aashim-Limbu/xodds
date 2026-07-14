@@ -6,6 +6,7 @@ import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { useFeed } from "@/lib/feed";
 import type { PoolAccount, PoolState } from "@/lib/anchorClient";
 import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
+import { useTxlineLive } from "@/lib/useTxlineLive";
 import { decimalOdds, formatUsdc, parseUsdc } from "@/lib/format";
 import { friendlyError } from "@/lib/errors";
 import { Feed } from "./Feed";
@@ -50,6 +51,8 @@ export function PoolView({ address }: { address: string }) {
   const [paidAmount, setPaidAmount] = useState<bigint | null>(null);
   const claimInFlight = useRef(false);
   const lastState = useRef<PoolState | null>(null);
+  // Real TxLINE Reference Odds + Feed lines when a token is configured; {} (static fallback) otherwise.
+  const live = useTxlineLive(pool?.fixtureId ?? 0n);
 
   const refresh = useCallback(async () => {
     if (!client) return;
@@ -78,11 +81,12 @@ export function PoolView({ address }: { address: string }) {
       // (no live feed here) — scripted events replay once when the Pool Locks.
       if (pool.state === "locked") {
         const fx = fixtureById(pool.fixtureId);
-        fx?.matchEvents?.forEach((ev, i) => feed.postSystem(`fx:${address}:${i}`, ev));
+        const events = live.matchEvents ?? fx?.matchEvents;
+        events?.forEach((ev, i) => feed.postSystem(`fx:${address}:${i}`, ev));
       }
     }
     lastState.current = pool.state;
-  }, [pool, feed, address]);
+  }, [pool, feed, address, live]);
 
   // Claim the winning payout. Used by both the auto-claim effect and the manual button, so a
   // flaky RPC leaves a retry affordance instead of stranding the winner. Only latches on success.
@@ -122,7 +126,7 @@ export function PoolView({ address }: { address: string }) {
 
   const fixture = fixtureById(pool.fixtureId);
   const labels = poolOutcomeLabels(pool.poolType, pool.lineX2, fixture);
-  const probs = fixture?.referenceProbabilities ?? [0, 0, 0];
+  const probs = live.referenceProbabilities ?? fixture?.referenceProbabilities ?? [0, 0, 0];
   const showOdds = pool.poolType === "matchWinner"; // the mock only carries 1X2 Reference Odds
 
   const winning = pool.winningOutcome;
