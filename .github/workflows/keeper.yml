@@ -1,0 +1,40 @@
+# Hosted keeper: one permissionless tick every 5 minutes (GitHub cron's floor; timing is
+# best-effort). Locks pools past kickoff, publishes score roots, settles/voids. Safe to run
+# alongside a local `pnpm keeper` — on-chain guards make every action first-wins.
+#
+# Required secret:
+#   KEEPER_KEYPAIR — the JSON array from a funded devnet fee-payer keypair file
+#                    (holds no authority; ~0.001 SOL per action).
+# Optional secrets for the real TxLINE feed: TXLINE_API_TOKEN, TXLINE_JWT, TXLINE_ORIGIN.
+name: keeper
+on:
+  schedule:
+    - cron: "*/5 * * * *"
+  workflow_dispatch: {}
+
+concurrency:
+  group: keeper
+  cancel-in-progress: false
+
+jobs:
+  tick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+      - name: Write keeper keypair
+        run: echo "$KEEPER_KEYPAIR" > keeper-keypair.json
+        env:
+          KEEPER_KEYPAIR: ${{ secrets.KEEPER_KEYPAIR }}
+      - run: pnpm keeper:once
+        env:
+          KEEPER_KEYPAIR: keeper-keypair.json
+          TXLINE_API_TOKEN: ${{ secrets.TXLINE_API_TOKEN }}
+          TXLINE_JWT: ${{ secrets.TXLINE_JWT }}
+          TXLINE_ORIGIN: ${{ secrets.TXLINE_ORIGIN }}

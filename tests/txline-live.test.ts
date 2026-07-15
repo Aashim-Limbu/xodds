@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { parseFinalisedStats, type TxScores } from "../keeper/txline-live.js";
-import { STATUS_ABANDONED, STATUS_FINALISED } from "../keeper/merkle.js";
+import { parseFinalisedStats, RealTxLine, type TxScores } from "../keeper/txline-live.js";
+import { buildScoreProof, leafHash, STATUS_ABANDONED, STATUS_FINALISED, type FixtureStats } from "../keeper/merkle.js";
 
 // Pins the TxLINE finalised-record -> FixtureStats mapping (keeper/txline-live.ts). If the
 // real feed's stat-key strings differ, fix them in the K map there and update this vector.
@@ -41,5 +41,22 @@ describe("parseFinalisedStats", () => {
   it("flags an abandoned match via statusSoccerId", () => {
     const abandoned: TxScores[] = [{ fixtureId: 42, action: "in_play", participant1IsHome: true, statusSoccerId: 15, stats: {} }];
     expect(parseFinalisedStats(42n, abandoned)?.status).toBe(STATUS_ABANDONED);
+  });
+});
+
+describe("RealTxLine single-leaf proofs", () => {
+  // The Keeper publishes the root and settles from the same buildScoreProof call; with
+  // empty siblings the root is the leaf hash, so publish and settle can never drift apart
+  // even when other fixtures finalise between ticks.
+  it("uses an empty sibling set so root == leaf hash, deterministically", () => {
+    const stats: FixtureStats = {
+      fixtureId: 42n, homeGoals: 2, awayGoals: 1,
+      homeCorners: 6, awayCorners: 4, homeCards: 2, awayCards: 3,
+    };
+    const txline = new RealTxLine({ jwt: "j", apiToken: "t" }, new Map([[42n, stats], [43n, { ...stats, fixtureId: 43n }]]));
+    expect(txline.siblings(42n)).toEqual([]);
+    const { root, proof } = buildScoreProof(stats, txline.siblings(42n));
+    expect(proof.merklePath).toEqual([]);
+    expect(root).toEqual(leafHash(stats));
   });
 });

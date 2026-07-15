@@ -1,8 +1,10 @@
 import { readFileSync } from "node:fs";
 import { AnchorProvider, Program, Wallet } from "@coral-xyz/anchor";
 import { Connection, Keypair } from "@solana/web3.js";
-import idl from "../target/idl/finalwhistle.json";
-import type { Finalwhistle } from "../target/types/finalwhistle.js";
+import idl from "./idl/finalwhistle.json";
+import type { Finalwhistle } from "./idl/finalwhistle.js";
+import mockIdl from "./idl/txline_mock.json";
+import type { TxlineMock } from "./idl/txline_mock.js";
 import { Keeper } from "./keeper.js";
 import { StandInTxLine, type TxLineClient } from "./txline.js";
 import { guestAuth, RealTxLine } from "./txline-live.js";
@@ -23,13 +25,14 @@ function loadKeypair(path: string): Keypair {
 // keeper/txline-live.ts for the one-time subscribe/activate flow); otherwise the scripted
 // StandIn, so the demo runs with no credentials. Settlement stays on our own root either way.
 async function chooseTxLine(): Promise<TxLineClient> {
-  const apiToken = process.env.TXLINE_API_TOKEN;
+  // `|| undefined` (not ??): unset GitHub Actions secrets arrive as empty strings, which
+  // must fall back exactly like a missing var.
+  const apiToken = process.env.TXLINE_API_TOKEN || undefined;
   if (!apiToken) return new StandInTxLine();
-  const origin = process.env.TXLINE_ORIGIN;
-  const jwt = process.env.TXLINE_JWT ?? (await guestAuth(origin));
-  const slate = (process.env.TXLINE_FIXTURES ?? "").split(",").map((s) => s.trim()).filter(Boolean).map(BigInt);
-  console.log(`[keeper] using real TxLINE feed for fixtures [${slate.join(", ")}]`);
-  return new RealTxLine({ jwt, apiToken, origin }, slate);
+  const origin = process.env.TXLINE_ORIGIN || undefined;
+  const jwt = process.env.TXLINE_JWT || (await guestAuth(origin));
+  console.log("[keeper] using real TxLINE feed");
+  return new RealTxLine({ jwt, apiToken, origin });
 }
 
 async function main() {
@@ -37,8 +40,15 @@ async function main() {
   const wallet = new Wallet(loadKeypair(KEYPAIR_PATH));
   const provider = new AnchorProvider(connection, wallet, { commitment: "confirmed" });
   const program = new Program<Finalwhistle>(idl as Finalwhistle, provider);
+  const mock = new Program<TxlineMock>(mockIdl as TxlineMock, provider);
 
-  const keeper = new Keeper(program, await chooseTxLine());
+  const keeper = new Keeper(program, await chooseTxLine(), undefined, mock);
+  if (process.argv.includes("--once")) {
+    // One tick and exit — for cron hosting (GitHub Actions / any scheduler).
+    const taken = await keeper.tick();
+    console.log(`[keeper] once: ${taken.length} action(s)`);
+    return;
+  }
   keeper.runLoop(POLL_MS);
 }
 

@@ -31,3 +31,4 @@ test-ledger/
 
 # TS incremental build info
 *.tsbuildinfo
+keeper-keypair.json

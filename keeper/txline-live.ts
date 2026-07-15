@@ -105,15 +105,12 @@ export async function activate(
 
 /** Read TxLINE's live scores using credentials obtained once via the subscribe/activate flow.
  * Settlement stays on our own root (ADR-0008): scoresRootAccount() delegates to the mock scheme,
- * and publish-roots.ts anchors these real stats under it. */
+ * and the Keeper self-publishes the root over these real stats before settling. */
 export class RealTxLine implements TxLineClient {
   private cache = new Map<bigint, FixtureStats | null>();
 
   constructor(
     private readonly creds: { jwt: string; apiToken: string; origin?: string },
-    /** The demo slate's other fixtures — used verbatim as this Fixture's Merkle siblings, so our
-     * root stays over a known leaf set (we control the slate; TxLINE's own day-tree is separate). */
-    private readonly slate: bigint[] = [],
     private readonly slateStats: Map<bigint, FixtureStats> = new Map(),
   ) {}
 
@@ -154,6 +151,11 @@ export class RealTxLine implements TxLineClient {
   }
 
   siblings(fixtureId: bigint): FixtureStats[] {
-    return this.slate.filter((id) => id !== fixtureId).map((id) => this.slateStats.get(id)).filter((s): s is FixtureStats => !!s);
+    // Single-leaf tree per Fixture (root = leaf hash). Deliberate: siblings here would be
+    // "whichever slate Fixtures happen to have finalised by now", which drifts between the
+    // tick that publishes the root and a later tick settling another Pool on the same
+    // Fixture — a proof/root mismatch. The root lives in a per-Fixture PDA, so decoy
+    // siblings add nothing; empty keeps publish and settle consistent forever.
+    return [];
   }
 }
