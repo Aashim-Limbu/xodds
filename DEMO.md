@@ -11,8 +11,15 @@ The exact startup order and a 3-minute walkthrough. Everything runs on devnet; t
    - `NEXT_PUBLIC_USDC_MINT` — the devnet test mint (see app/README.md to create one).
    - `FAUCET_KEYPAIR` — path to the mint-authority keypair (funds test users).
    - `TXLINE_API_TOKEN` — optional; real TxLINE data. Unset = scripted stand-in slate.
-2. **Feed history table** (optional but recommended — otherwise chat is ephemeral and wiped
-   on reload). In the Supabase SQL editor:
+2. **Social-layer tables** (optional but recommended — otherwise chat is ephemeral, the
+   leaderboard is empty, and Groups don't follow you across devices). One command:
+
+   ```sh
+   # Dashboard -> Connect -> Session pooler URI (with your DB password)
+   SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@...pooler.supabase.com:5432/postgres' pnpm setup:supabase
+   ```
+
+   Or paste `supabase/setup.sql` into the dashboard's SQL editor. It creates (idempotently):
 
    ```sql
    create table if not exists feed_events (
@@ -48,12 +55,29 @@ The exact startup order and a 3-minute walkthrough. Everything runs on devnet; t
    create policy "results are public" on pool_results for select using (true);
    create policy "anyone can record" on pool_results for insert with check (true);
    alter publication supabase_realtime add table pool_results;  -- live board updates
+
+   -- Shared Group membership: a Group follows its members across devices, and the
+   -- Syndicate tab shows a real roster instead of only live presence.
+   create table if not exists group_members (
+     group_id text not null,
+     wallet text not null,
+     name text not null,
+     group_name text not null,
+     ts bigint not null,
+     primary key (group_id, wallet)
+   );
+   alter table group_members enable row level security;
+   create policy "members are public" on group_members for select using (true);
+   create policy "anyone can join" on group_members for insert with check (true);
+   create policy "members can update" on group_members for update using (true);
    ```
 
    (Anon-writable by design for the demo — the Feed and leaderboard are a public social layer,
    not a money path. A client can only report its OWN result.)
-3. **Publish demo score roots** (so `settle` has TxLINE-owned roots to verify): from repo root
-   `pnpm publish-roots` (idempotent; uses the deploy wallet).
+3. ~~Publish demo score roots~~ — no longer a setup step: the keeper self-publishes a
+   Fixture's score root right before it settles (over scripted *or* real TxLINE stats).
+   `pnpm publish-roots` still exists to pre-publish the scripted slate if you want roots
+   visible on-chain before any Pool settles.
 
 ## Every demo session
 
