@@ -62,7 +62,7 @@ async function main() {
   // create -> enter -> lock (kickoff in the past so it locks immediately)
   const kickoff = Math.floor(Date.now() / 1000) - 5;
   await program.methods
-    .createPool(group, new BN(FIXTURE.toString()), { matchWinner: {} }, new BN(nonce.toString()), new BN(kickoff))
+    .createPool(group, new BN(FIXTURE.toString()), { matchWinner: {} }, new BN(nonce.toString()), new BN(kickoff), 0)
     .accountsPartial({ pool, escrow, usdcMint: USDC_MINT, creator: me, tokenProgram: TOKEN_PROGRAM_ID, systemProgram: SystemProgram.programId })
     .rpc();
   console.log("created Pool", pool.toBase58());

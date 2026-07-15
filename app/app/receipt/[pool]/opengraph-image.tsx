@@ -43,16 +43,16 @@ export default async function Image({ params }: { params: Promise<{ pool: string
           <div style={{ display: "flex", flexDirection: "column", justifyContent: "center", padding: "56px 60px", flex: 1 }}>
             <div style={{ display: "flex", fontSize: 26, fontWeight: 700, letterSpacing: 2, color: "#4d4632" }}>xODDS · PROOF RECEIPT</div>
             {summary ? (
-              <>
-                <div style={{ display: "flex", fontSize: 40, fontWeight: 700, marginTop: 22 }}>{summary.matchup}</div>
-                <div style={{ display: "flex", fontSize: 150, fontWeight: 900, lineHeight: 1, margin: "8px 0 6px" }}>{summary.score}</div>
-                <div style={{ display: "flex", fontSize: 46, fontWeight: 900, fontStyle: "italic", color: INK }}>{summary.headline}</div>
-              </>
+              <div style={{ display: "flex", flexDirection: "column", marginTop: 22 }}>
+                <div style={{ display: "flex", fontSize: 38, fontWeight: 700 }}>{summary.matchup}</div>
+                <div style={{ display: "flex", fontSize: 128, fontWeight: 900, lineHeight: 1.05 }}>{summary.score}</div>
+                <div style={{ display: "flex", fontSize: 44, fontWeight: 900, fontStyle: "italic", color: INK, marginTop: 4 }}>{summary.headline}</div>
+              </div>
             ) : (
               <div style={{ display: "flex", fontSize: 64, fontWeight: 900, fontStyle: "italic", marginTop: 24 }}>Settled by proof, not a house.</div>
             )}
-            <div style={{ display: "flex", alignItems: "center", marginTop: 30, fontSize: 28, fontWeight: 800, color: GREEN }}>
-              ✓ Verified on-chain · nobody chose this outcome
+            <div style={{ display: "flex", alignItems: "center", marginTop: 30, fontSize: 26, fontWeight: 800, color: GREEN }}>
+              ✅ Verified on-chain · nobody chose this outcome
             </div>
           </div>
         </div>
