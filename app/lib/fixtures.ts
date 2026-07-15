@@ -50,6 +50,21 @@ export function fixtureById(id: bigint): Fixture | undefined {
   return FIXTURES.find((f) => f.fixtureId === id);
 }
 
+/**
+ * Merge real TxLINE Fixtures (from /api/txline/fixtures) into the slate, so fixtureById keeps
+ * working synchronously in every component. Real Fixtures carry no scripted odds/events — the
+ * live TxLINE routes provide those. ponytail: module-level mutation, fine for a client slate;
+ * move to context if fixtures ever need to be reactive outside useFixtures().
+ */
+export function hydrateFixtures(real: Array<{ fixtureId: string; home: string; away: string; kickoff: number }>): void {
+  for (const r of real) {
+    const id = BigInt(r.fixtureId);
+    if (!FIXTURES.some((f) => f.fixtureId === id)) {
+      FIXTURES.push({ fixtureId: id, home: r.home, away: r.away, kickoff: r.kickoff, referenceProbabilities: [0, 0, 0] });
+    }
+  }
+}
+
 /** Outcome labels for a Match Winner (1X2) Pool on a Fixture. */
 export function outcomeLabels(f: Fixture): [string, string, string] {
   return [`${f.home} win`, "Draw", `${f.away} win`];

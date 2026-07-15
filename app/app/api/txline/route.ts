@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { finalisedFeedLines, pick1x2Probabilities, type OddsPayload, type ScoresRecord, type TxlineLive } from "@/lib/txline";
+import { finalisedFeedLines, liveScore, pick1x2Probabilities, type OddsPayload, type ScoresRecord, type TxlineLive } from "@/lib/txline";
 
 // Server-side proxy to the real TxLINE devnet feed. Holds the API token so it never reaches
 // the browser (the trust boundary — same as the faucet route). Returns real Reference Odds +
@@ -33,8 +33,10 @@ export async function GET(req: Request): Promise<Response> {
     const out: TxlineLive = {};
     if (oddsRes.ok) out.referenceProbabilities = pick1x2Probabilities((await oddsRes.json()) as OddsPayload[]);
     if (scoresRes.ok) {
-      const lines = finalisedFeedLines((await scoresRes.json()) as ScoresRecord[]);
+      const records = (await scoresRes.json()) as ScoresRecord[];
+      const lines = finalisedFeedLines(records);
       if (lines.length) out.matchEvents = lines;
+      out.score = liveScore(records);
     }
     return NextResponse.json(out, { headers: { "Cache-Control": "s-maxage=30" } });
   } catch {

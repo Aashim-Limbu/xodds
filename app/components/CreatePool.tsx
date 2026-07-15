@@ -4,7 +4,7 @@ import { useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { friendlyError } from "@/lib/errors";
-import { FIXTURES } from "@/lib/fixtures";
+import { useFixtures } from "@/lib/useTxlineLive";
 import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
 import type { PoolTypeName } from "@/lib/anchorClient";
 
@@ -18,7 +18,8 @@ const LINES: Array<{ label: string; lineX2: number }> = [
 /** Create a Pool (Match Winner or Total Goals O/U) on a Fixture, in the active Group. */
 export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: () => void }) {
   const { client } = useFinalWhistle();
-  const [fixtureId, setFixtureId] = useState(FIXTURES[0].fixtureId.toString());
+  const fixtures = useFixtures(); // static slate + real TxLINE Fixtures when a token is configured
+  const [fixtureId, setFixtureId] = useState(fixtures[0].fixtureId.toString());
   const [poolType, setPoolType] = useState<PoolTypeName>("matchWinner");
   const [lineX2, setLineX2] = useState(5);
   const [busy, setBusy] = useState(false);
@@ -29,7 +30,7 @@ export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: 
     setBusy(true);
     setError(null);
     try {
-      const fixture = FIXTURES.find((f) => f.fixtureId.toString() === fixtureId)!;
+      const fixture = fixtures.find((f) => f.fixtureId.toString() === fixtureId)!;
       // Next free nonce for this Group + Fixture + Pool Type (the PDA is keyed by all three).
       const existing = await client.listPools(group);
       const nonce = BigInt(
@@ -50,7 +51,7 @@ export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: 
       <h2 style={{ margin: 0 }}>Create a Pool</h2>
       <div className="row" style={{ flexWrap: "wrap", gap: 8 }}>
         <select value={fixtureId} onChange={(e) => setFixtureId(e.target.value)} disabled={busy}>
-          {FIXTURES.map((f) => (
+          {fixtures.map((f) => (
             <option key={f.fixtureId.toString()} value={f.fixtureId.toString()}>
               {f.home} vs {f.away}
             </option>

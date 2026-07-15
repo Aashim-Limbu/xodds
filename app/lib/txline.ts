@@ -18,13 +18,32 @@ export interface OddsPayload {
 export interface ScoresRecord {
   action: string;
   participant1IsHome: boolean;
+  statusSoccerId?: number;
+  seq?: number;
   stats?: Record<string, number>;
 }
 
-/** What the route returns to the client; both optional so the UI falls back to static fixtures. */
+/** GET /api/fixtures/snapshot — one upcoming Fixture. Partial shape. */
+export interface TxFixture {
+  FixtureId: number;
+  Participant1: string;
+  Participant2: string;
+  Participant1IsHome: boolean;
+  StartTime: number; // unix ms
+}
+
+/** The match as it stands right now — the Locked-state scoreline strip. */
+export interface LiveScore {
+  home: number;
+  away: number;
+  phase: string; // "First half", "Half-time", …
+}
+
+/** What the route returns to the client; all optional so the UI falls back to static fixtures. */
 export interface TxlineLive {
   referenceProbabilities?: [number, number, number];
   matchEvents?: string[];
+  score?: LiveScore;
 }
 
 // ponytail: which SuperOddsType / period is full-time 1X2, and the PriceNames order, are our
@@ -66,6 +85,25 @@ export function pick1x2Probabilities(odds: OddsPayload[]): [number, number, numb
 }
 
 const K = { p1g: "1", p2g: "2", p1y: "3", p2y: "4", p1r: "5", p2r: "6", p1c: "7", p2c: "8" };
+
+// SoccerFixtureStatus (soccer feed docs) → the phase label shown on the live strip.
+const PHASE: Record<number, string> = {
+  1: "Kick-off soon", 2: "First half", 3: "Half-time", 4: "Second half", 5: "Full time",
+  6: "Extra time soon", 7: "Extra time", 8: "ET half-time", 9: "Extra time", 10: "Full time (AET)",
+  11: "Penalties soon", 12: "Penalties", 13: "Full time (pens)",
+  14: "Interrupted", 15: "Abandoned", 16: "Cancelled", 19: "Postponed",
+};
+
+/** The current scoreline + phase from the latest snapshot record; undefined before any record. */
+export function liveScore(records: ScoresRecord[]): LiveScore | undefined {
+  const rec = [...records].sort((a, b) => (b.seq ?? 0) - (a.seq ?? 0))[0];
+  if (!rec) return undefined;
+  const s = rec.stats ?? {};
+  const p1 = s[K.p1g] ?? 0;
+  const p2 = s[K.p2g] ?? 0;
+  const [home, away] = rec.participant1IsHome ? [p1, p2] : [p2, p1];
+  return { home, away, phase: PHASE[rec.statusSoccerId ?? 0] ?? "In play" };
+}
 
 /**
  * Feed summary lines from a finalised score snapshot — real data, not a scripted play-by-play

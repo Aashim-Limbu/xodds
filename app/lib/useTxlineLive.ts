@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { FIXTURES, hydrateFixtures, type Fixture } from "./fixtures";
 import { pick1x2Probabilities, type OddsPayload, type TxlineLive } from "./txline";
 
 // Fetch real TxLINE Reference Odds + Feed lines for a Fixture via the server route, then keep
@@ -10,16 +11,22 @@ import { pick1x2Probabilities, type OddsPayload, type TxlineLive } from "./txlin
 export function useTxlineLive(fixtureId: bigint): TxlineLive {
   const [live, setLive] = useState<TxlineLive>({});
 
-  // Snapshot: seeds Reference Odds + Feed lines.
+  // Snapshot: seeds Reference Odds + Feed lines, and re-polls so the live scoreline moves.
   useEffect(() => {
     if (!fixtureId) return; // 0n is falsy — skip until the Pool's real fixtureId loads
     let alive = true;
-    fetch(`/api/txline?fixtureId=${fixtureId}`)
-      .then((r) => (r.ok ? r.json() : {}))
-      .then((d) => alive && setLive((prev) => ({ ...d, ...prev }))) // keep any live-streamed odds
-      .catch(() => {});
+    const load = () =>
+      fetch(`/api/txline?fixtureId=${fixtureId}`)
+        .then((r) => (r.ok ? r.json() : {}))
+        // Snapshot overwrites; an active stream re-overwrites the odds within seconds anyway,
+        // and if the stream dropped this keeps them fresh.
+        .then((d: TxlineLive) => alive && setLive((prev) => ({ ...prev, ...d })))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 30_000);
     return () => {
       alive = false;
+      clearInterval(id);
     };
   }, [fixtureId]);
 
@@ -46,4 +53,25 @@ export function useTxlineLive(fixtureId: bigint): TxlineLive {
   }, [fixtureId]);
 
   return live;
+}
+
+/** The Fixture slate for pickers: static demo Fixtures plus any real TxLINE Fixtures
+ * (hydrated once per page load; empty response = static only). */
+export function useFixtures(): Fixture[] {
+  const [fixtures, setFixtures] = useState<Fixture[]>([...FIXTURES]);
+  useEffect(() => {
+    let alive = true;
+    fetch("/api/txline/fixtures")
+      .then((r) => (r.ok ? r.json() : []))
+      .then((real: Array<{ fixtureId: string; home: string; away: string; kickoff: number }>) => {
+        if (!alive || !real.length) return;
+        hydrateFixtures(real);
+        setFixtures([...FIXTURES]);
+      })
+      .catch(() => {});
+    return () => {
+      alive = false;
+    };
+  }, []);
+  return fixtures;
 }
