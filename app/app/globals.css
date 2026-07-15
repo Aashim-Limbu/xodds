@@ -6,6 +6,7 @@
   --muted: #4d4632;
   --yellow: #ffd700; /* deep, high-saturation "UX-correct" yellow, per Stitch hero spec */
   --yellow-deep: #e9c400;
+  --olive: #705d00; /* Stitch "primary" — the top-nav bar */
   --blue: #0046fa;
   --green: #056a30; /* AA (4.5+) even on the open/verify tint */
   --danger: #d32f2f;
@@ -153,78 +154,155 @@ select, input {
 .badge.settled { background: var(--tint-settled); }
 .badge.void { background: var(--tint-void); }
 
-/* ---- Dashboard top nav (signed-in) ---- */
+/* Material Symbols icon base (the Stitch component's icon font) */
+.msym {
+  font-family: "Material Symbols Outlined";
+  font-weight: normal;
+  font-style: normal;
+  line-height: 1;
+  letter-spacing: normal;
+  text-transform: none;
+  white-space: nowrap;
+  word-wrap: normal;
+  direction: ltr;
+  -webkit-font-feature-settings: "liga";
+  font-feature-settings: "liga";
+  -webkit-font-smoothing: antialiased;
+  user-select: none;
+}
+
+/* ---- Dashboard top nav (signed-in) — olive bar, fixed, hard shadow (Stitch component) ---- */
 .dash-nav {
+  position: sticky;
+  top: 0;
+  z-index: 50;
+  padding: 14px 20px;
+  margin-bottom: 24px;
+  background: var(--olive);
+  border-bottom: 2px solid var(--ink);
+  box-shadow: 0 4px 0 0 var(--ink);
+}
+.dash-nav-inner {
+  max-width: 1100px;
+  margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
-  padding: 14px 0 18px;
-  margin-bottom: 8px;
-  border-bottom: 3px solid var(--ink);
 }
-.nav-links { display: flex; gap: 26px; }
-@media (max-width: 640px) { .nav-links { display: none; } }
+.dash-nav .brand { color: #221b00; }
+.dash-nav .brand span { background: var(--ink); color: var(--yellow); }
+.nav-links { display: flex; gap: 32px; }
+@media (max-width: 720px) { .nav-links { display: none; } }
 .nav-link {
   font-family: var(--body);
   font-weight: 800;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 13px;
-  color: var(--ink);
+  font-size: 15px;
+  color: #4d4632;
   text-decoration: none;
-  padding-bottom: 2px;
-  border-bottom: 3px solid transparent;
 }
-.nav-link:hover { border-bottom-color: var(--ink); }
-.nav-link[aria-current="page"] { border-bottom-color: var(--yellow-deep); }
-.nav-right { display: flex; align-items: center; gap: 12px; }
-.wallet-chip { font-family: var(--mono); font-size: 12px; font-weight: 700; color: var(--muted); }
-.nav-avatar {
-  width: 40px;
-  height: 40px;
+.nav-link:hover { color: #221b00; transform: translateY(1px); }
+.nav-link[aria-current="page"] { color: #221b00; }
+.nav-right { display: flex; align-items: center; gap: 6px; }
+.nav-icon-btn {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 8px;
   border-radius: 999px;
-  border: 3px solid var(--ink);
+  color: #221b00;
+  cursor: pointer;
   display: grid;
   place-items: center;
+}
+.nav-icon-btn:hover { background: rgba(31, 27, 16, 0.1); transform: none; box-shadow: none; }
+.nav-icon-btn .msym { font-size: 24px; }
+
+/* ---- Mobile bottom nav (Stitch component) ---- */
+.bottom-nav {
+  position: fixed;
+  bottom: 0;
+  left: 0;
+  width: 100%;
+  z-index: 50;
+  display: none;
+  justify-content: space-around;
+  align-items: center;
+  padding: 10px 12px;
+  background: var(--paper);
+  border-top: 2px solid var(--ink);
+}
+@media (max-width: 720px) { .bottom-nav { display: flex; } }
+.bn-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 2px;
+  color: var(--muted);
+  text-decoration: none;
   font-family: var(--body);
-  font-weight: 800;
-  color: var(--ink);
+  font-size: 11px;
+  font-weight: 700;
+}
+.bn-item .msym { font-size: 24px; }
+.bn-item.active {
+  color: #221b00;
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  padding: 4px 16px;
+  box-shadow: 2px 2px 0 0 var(--ink);
 }
 
 /* ---- Yellow hero (welcome, group banner) ---- */
 .hero {
   position: relative;
-  /* exact yellow of the Stitch collage crop, so hero-right.png blends seamlessly */
-  background: #f7d206;
+  /* clean dot-texture hero (Stitch hi-fi component): 8px halftone over deep yellow */
+  background: var(--dots), var(--yellow);
   border: 4px solid var(--ink);
   border-radius: var(--r-md);
   box-shadow: var(--shadow-lg);
-  padding: 28px 24px;
+  padding: 32px 28px;
   margin-bottom: 24px;
   overflow: hidden;
 }
-/* group hero: decorative collage on the right, text column on the left (above it) */
-.hero > .hero-content { position: relative; z-index: 2; max-width: 460px; }
-@media (max-width: 760px) { .hero > .hero-content { max-width: none; } }
-/* the full right-side collage (stadium + flags + trophy + crowd), one seamless image */
-.hero-collage {
-  position: absolute;
-  right: 0;
-  top: 0;
-  height: 100%;
-  width: auto;
-  max-width: 62%;
-  object-fit: cover;
-  object-position: right center;
-  z-index: 1;
-  pointer-events: none;
+/* group hero content sits above the dot texture; Stitch layout = text left, buttons right */
+.hero > .hero-content {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 24px;
+  flex-wrap: wrap;
 }
-@media (max-width: 760px) { .hero-collage { opacity: 0.28; } }
-.hero-members { display: flex; align-items: center; gap: 12px; margin-top: 16px; }
-.hero-members .label { font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.05em; }
-.hero-members .avatar { border-color: var(--ink); }
-.hero-members .avatar.more { background: var(--paper); }
+.hero-main { max-width: 640px; }
+.hero-members { display: flex; align-items: center; gap: 12px; margin-top: 18px; }
+.hero-members .label { font-family: var(--mono); font-size: 13px; font-weight: 700; letter-spacing: 0.05em; }
+.hero-members .avatar { width: 44px; height: 44px; border-width: 2px; }
+.hero-members .avatar.more { background: var(--ink); color: #fff; }
+.hero-actions { display: flex; gap: 14px; flex-wrap: wrap; }
+.hero-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  border: 2px solid var(--ink);
+  border-radius: 0;
+  box-shadow: var(--shadow);
+  padding: 14px 24px;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 16px;
+  letter-spacing: 0;
+  cursor: pointer;
+}
+.hero-btn .msym { font-size: 20px; }
+.hero-btn.invite { background: var(--paper); color: var(--ink); }
+.hero-btn.newpool { background: var(--ink); color: var(--yellow); }
+.hero-btn:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 0 var(--ink); }
+.hero-group-select { margin-top: 4px; }
 .hero-title {
   font-family: var(--display);
   font-style: italic;
@@ -330,109 +408,128 @@ select, input {
   .stick { max-width: 56px; height: auto; }
 }
 
-/* ---- Section head (Active Pools + filter pills) ---- */
-.section-head { display: flex; justify-content: space-between; align-items: center; margin: 28px 0 14px; }
-.section-head .section-title { margin: 0; }
-.filter-pills { display: flex; gap: 8px; }
-.filter-pill {
-  font-family: var(--mono);
-  font-size: 11px;
-  font-weight: 700;
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  padding: 6px 14px;
-  border: 2px solid var(--ink);
-  border-radius: 999px;
-  background: var(--paper);
-  color: var(--ink);
-  cursor: pointer;
-  box-shadow: none;
-}
-.filter-pill:hover { transform: none; background: var(--cream-2); box-shadow: none; }
-.filter-pill[aria-pressed="true"] { background: var(--ink); color: #fff; }
+/* 8px halftone dot texture (from the Stitch hi-fi component), layered over a fill.
+   Usage: background: var(--dots), <fill>;  */
+:root { --dots: radial-gradient(rgba(31, 27, 16, 0.10) 1px, transparent 0) 0 0 / 8px 8px; }
 
-/* ---- Pool cards grid (Active Pools) — dashboard style ---- */
+/* ---- Section head (Active Pools + segmented filter control) ---- */
+.section-head { display: flex; justify-content: space-between; align-items: center; margin: 28px 0 14px; flex-wrap: wrap; gap: 12px; }
+.section-head .section-title { margin: 0; }
+.filter-seg {
+  display: inline-flex;
+  gap: 4px;
+  padding: 4px;
+  background: var(--cream-2);
+  border: 2px solid var(--ink);
+  border-radius: var(--r-sm);
+}
+.filter-seg button {
+  background: transparent;
+  color: var(--ink);
+  border: 0;
+  box-shadow: none;
+  border-radius: 5px;
+  padding: 5px 18px;
+  font-family: var(--body);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  font-size: 12px;
+  cursor: pointer;
+}
+.filter-seg button:hover { transform: none; background: var(--paper); box-shadow: none; }
+.filter-seg button[aria-pressed="true"] { background: var(--ink); color: #fff; }
+.filter-seg button[aria-pressed="true"]:hover { background: var(--ink); }
+
+/* ---- Pool cards (Active Pools) — hi-fi bento style ---- */
 .pool-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 22px; }
-.card-link { text-decoration: none; color: inherit; display: block; }
+.card-link { text-decoration: none; color: inherit; display: block; height: 100%; }
 .pool-card {
+  --tint: var(--paper);
   margin-bottom: 0;
   height: 100%;
   padding: 0;
   overflow: hidden;
   display: flex;
   flex-direction: column;
+  background: var(--dots), var(--tint);
 }
-.card-link:hover .pool-card { transform: translate(2px, 2px); box-shadow: 1px 1px 0 0 var(--ink); }
+.pool-card.is-open { --tint: #fff8ef; }
+.pool-card.is-locked { --tint: var(--tint-locked); }
+.pool-card.is-settled { --tint: var(--tint-settled); }
+.pool-card.is-void { --tint: var(--tint-void); }
+.card-link:hover .pool-card { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 0 var(--ink); }
 @media (prefers-reduced-motion: no-preference) {
   .pool-card { transition: transform 120ms ease, box-shadow 120ms ease; }
 }
-/* colored header strip */
-.pool-card-head {
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 12px 14px;
-  background: var(--yellow);
-  border-bottom: 3px solid var(--ink);
-}
-.pool-card-head.is-locked, .pool-card-head.is-void { background: var(--tint-locked); }
-.pool-card-head.is-settled { background: var(--tint-settled); }
-.pool-icon {
+.pc-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; flex-grow: 1; }
+.pc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; border-bottom: 2px solid var(--ink); padding-bottom: 14px; }
+.pc-icon {
   flex: none;
-  width: 36px;
-  height: 36px;
+  width: 48px;
+  height: 48px;
   display: grid;
   place-items: center;
-  font-size: 18px;
-  background: var(--paper);
-  border: 3px solid var(--ink);
+  background: var(--yellow);
+  border: 2px solid var(--ink);
   border-radius: 999px;
+  box-shadow: 2px 2px 0 0 var(--ink);
+  color: #fff;
 }
-.pool-card-title {
-  font-family: var(--display);
-  font-style: italic;
-  font-weight: 800;
+.pc-icon .msym { font-size: 24px; }
+.pc-icon.sport-0 { background: var(--yellow); color: #fff; }         /* soccer */
+.pc-icon.sport-1 { background: var(--surface-variant, #eae2cf); color: var(--ink); } /* motorsport */
+.pc-icon.sport-2 { background: #f26a1b; color: #fff; }              /* basketball */
+.pc-icon.sport-3 { background: var(--blue); color: #fff; }          /* other */
+.pc-title { font-family: var(--display); font-style: italic; font-weight: 900; text-transform: uppercase; font-size: 18px; line-height: 1; letter-spacing: -0.02em; }
+.pc-sub { font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
+/* solid state chip (bright green open, ink locked/settled, red void) */
+.pc-chip {
+  flex: none;
+  font-family: var(--body);
+  font-weight: 900;
+  font-size: 10px;
   text-transform: uppercase;
-  font-size: 15px;
-  line-height: 1.1;
+  letter-spacing: 0.06em;
+  color: #fff;
+  padding: 3px 8px;
+  border: 2px solid var(--ink);
+  border-radius: 5px;
+  box-shadow: 2px 2px 0 0 var(--ink);
+  white-space: nowrap;
 }
-.pool-card-sub { font-family: var(--mono); font-size: 11px; font-weight: 600; color: var(--muted); }
-.pool-card-body { padding: 4px 14px 14px; display: flex; flex-direction: column; }
-.meta-row {
-  display: flex;
-  justify-content: space-between;
-  align-items: center;
-  font-family: var(--mono);
-  font-size: 12px;
-  font-weight: 600;
-  color: var(--muted);
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  border-bottom: 2px dashed var(--cream-2);
-  padding: 12px 0;
-}
-.meta-row .value { font-family: var(--body); font-weight: 800; font-size: 15px; color: var(--ink); text-transform: none; letter-spacing: 0; }
-.meta-row .value.pot { font-family: var(--display); font-style: italic; font-size: 22px; font-variant-numeric: tabular-nums; }
-.join-btn {
+.pc-chip.is-open { background: #1a9d4e; }
+.pc-chip.is-locked, .pc-chip.is-settled { background: var(--ink); }
+.pc-chip.is-void { background: var(--danger); }
+/* two-cell POT / TOP SIDE */
+.pc-cells { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+.pc-cell { background: rgba(255, 255, 255, 0.5); border: 2px solid var(--ink); padding: 8px 10px; }
+.pc-cell .label { display: block; font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; opacity: 0.6; margin-bottom: 3px; }
+.pc-cell .num { font-family: var(--display); font-style: italic; font-weight: 900; font-size: 19px; letter-spacing: -0.02em; font-variant-numeric: tabular-nums; }
+.pc-parts { display: flex; justify-content: space-between; align-items: center; }
+.pc-parts .label { font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; opacity: 0.6; }
+/* full-width action bar */
+.pc-action {
   display: block;
   text-align: center;
-  background: var(--ink);
-  color: #fff;
-  border-radius: var(--r-sm);
-  padding: 12px;
-  font-weight: 800;
+  border-top: 2px solid var(--ink);
+  padding: 14px;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
   text-transform: uppercase;
-  letter-spacing: 0.04em;
-  font-size: 13px;
-  margin-top: 14px;
+  letter-spacing: -0.01em;
+  font-size: 15px;
 }
-.join-btn.ghost { background: var(--cream-2); color: var(--ink); border: 3px solid var(--ink); padding: 9px; }
+.pc-action.join { background: var(--yellow); color: var(--ink); }
+.pc-action.view { background: var(--paper); color: var(--ink); }
+.card-link:hover .pc-action.join { background: var(--yellow-deep); }
 
 /* ---- Fabricated participant avatar stack ---- */
 .avatars { display: flex; align-items: center; }
 .avatar {
-  width: 26px;
-  height: 26px;
+  width: 30px;
+  height: 30px;
   border-radius: 999px;
   border: 2px solid var(--ink);
   margin-left: -8px;
@@ -442,9 +539,10 @@ select, input {
   font-size: 11px;
   font-weight: 800;
   color: var(--ink);
+  overflow: hidden;
 }
 .avatar:first-child { margin-left: 0; }
-.avatar.more { background: var(--yellow); font-family: var(--mono); }
+.avatar.more { background: var(--ink); color: #fff; font-family: var(--mono); }
 
 /* ---- Match banner (Pool view header) ---- */
 .match-banner {
@@ -601,3 +699,214 @@ select, input {
 .feed-msg strong, .feed-reaction strong { color: var(--blue); display: block; font-size: 12px; }
 .feed-system { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted); padding: 2px 0; }
 .reaction-btn { padding: 9px 12px; font-size: 16px; } /* ≥40px touch target */
+
+/* ---- Invite modal ("Rally the Squad", from the Stitch component) ---- */
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 20px;
+  background: rgba(31, 27, 16, 0.28);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+.modal {
+  position: relative;
+  width: 100%;
+  max-width: 512px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  box-shadow: var(--shadow-lg);
+  display: flex;
+  flex-direction: column;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .modal { animation: modal-pop 140ms ease-out; }
+  @keyframes modal-pop { from { transform: translateY(8px) scale(0.98); opacity: 0; } to { transform: none; opacity: 1; } }
+}
+.modal-close {
+  position: absolute;
+  top: -16px;
+  right: -16px;
+  z-index: 5;
+  width: 48px;
+  height: 48px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--yellow);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-radius: 0;
+  box-shadow: var(--shadow);
+  cursor: pointer;
+}
+.modal-close .msym { font-size: 26px; font-weight: 700; }
+.modal-close:hover { background: var(--yellow-deep); transform: none; box-shadow: var(--shadow); }
+.modal-close:active { transform: translate(2px, 2px); box-shadow: none; }
+
+.modal-header {
+  position: relative;
+  overflow: hidden;
+  background: var(--dots), var(--yellow);
+  border-bottom: 2px solid var(--ink);
+  padding: 24px;
+}
+.modal-title {
+  position: relative;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin: 0;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: -0.03em;
+  font-size: clamp(30px, 5vw, 42px);
+  line-height: 1;
+  color: var(--ink);
+}
+.modal-title .msym { font-size: clamp(34px, 6vw, 44px); font-variation-settings: "FILL" 1; }
+.modal-sub {
+  position: relative;
+  z-index: 1;
+  margin: 10px 0 0;
+  max-width: 82%;
+  font-weight: 700;
+  color: var(--ink);
+}
+
+.modal-body { background: var(--bg); padding: 24px; display: flex; flex-direction: column; gap: 22px; }
+.field { display: flex; flex-direction: column; gap: 8px; }
+.field-label {
+  font-family: var(--body);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--ink);
+}
+.invite-row { display: flex; gap: 8px; }
+.modal-input {
+  flex: 1;
+  min-width: 0;
+  height: 56px;
+  padding: 0 16px;
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 0;
+  font-family: var(--body);
+  font-weight: 500;
+  font-size: 16px;
+}
+.modal-input:focus { outline: none; background: rgba(255, 214, 0, 0.18); }
+.send-btn {
+  height: 56px;
+  padding: 0 30px;
+  background: var(--ink);
+  color: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 0;
+  box-shadow: var(--shadow);
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  font-size: 16px;
+  white-space: nowrap;
+  cursor: pointer;
+}
+.send-btn:hover { background: var(--olive); transform: none; box-shadow: var(--shadow); }
+.send-btn:active { transform: translate(2px, 2px); box-shadow: none; }
+
+.or-divider { display: flex; align-items: center; gap: 14px; margin: 2px 0; }
+.or-divider::before, .or-divider::after { content: ""; height: 3px; flex: 1; background: var(--ink); }
+.or-divider span {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 13px;
+  color: var(--ink);
+}
+
+.link-row { position: relative; display: flex; align-items: center; }
+.secure-badge {
+  position: absolute;
+  left: 12px;
+  z-index: 2;
+  display: flex;
+  align-items: center;
+  gap: 3px;
+  padding: 4px 8px;
+  background: var(--yellow);
+  border: 2px solid var(--ink);
+  box-shadow: 2px 2px 0 0 var(--ink);
+  transform: rotate(-2deg);
+  font-family: var(--body);
+  font-size: 11px;
+  font-weight: 800;
+  text-transform: uppercase;
+  color: var(--ink);
+}
+.secure-badge .msym { font-size: 14px; font-variation-settings: "FILL" 1; }
+.link-input {
+  width: 100%;
+  height: 64px;
+  padding: 0 64px 0 108px;
+  background: #fff;
+  border: 3px solid var(--ink);
+  border-radius: 0;
+  font-family: var(--mono);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--ink);
+  text-overflow: ellipsis;
+  cursor: pointer;
+}
+.link-input:focus { outline: none; }
+.copy-btn {
+  position: absolute;
+  right: 0;
+  height: 64px;
+  width: 64px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+  background: var(--yellow);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-left: 0;
+  border-radius: 0;
+  box-shadow: none;
+  cursor: pointer;
+}
+.copy-btn .msym { font-size: 26px; }
+.copy-btn:hover { background: var(--yellow-deep); transform: none; box-shadow: none; }
+
+/* Live match strip (Locked Pools) — real TxLINE scoreline. State is text ("First half"),
+   never the dot alone. */
+.live-strip {
+  display: flex; align-items: center; gap: 10px;
+  margin-top: 12px; padding: 8px 12px;
+  background: var(--paper, #fff); border: 3px solid var(--ink); box-shadow: var(--shadow-sm);
+  font-family: var(--font-mono), monospace; font-weight: 600; font-size: 13px;
+}
+.live-dot { width: 9px; height: 9px; border-radius: 50%; background: var(--danger); border: 2px solid var(--ink); animation: live-pulse 1.6s ease-in-out infinite; }
+.live-phase { text-transform: uppercase; letter-spacing: 0.08em; }
+.live-score { margin-left: auto; font-weight: 800; }
+@keyframes live-pulse { 50% { opacity: 0.35; } }
+@media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
+
+/* LIVE tag on Reference Odds when the real StablePrice stream is feeding them. */
+.odds-live {
+  display: inline-block; margin-right: 6px; padding: 0 5px;
+  background: var(--danger); color: #fff; border: 2px solid var(--ink);
+  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+}

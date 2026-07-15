@@ -2,11 +2,14 @@
 
 import { useEffect, useState } from "react";
 import { SignIn } from "@/components/SignIn";
+import { Feed } from "@/components/Feed";
 import { CreatePool } from "@/components/CreatePool";
 import { GetTestFunds } from "@/components/GetTestFunds";
 import { GroupBar } from "@/components/GroupBar";
 import { PoolList } from "@/components/PoolList";
 import { XMark } from "@/components/stickers";
+import { useFeed } from "@/lib/feed";
+import { feedDisplayName } from "@/lib/format";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import {
   createGroup,
@@ -20,10 +23,13 @@ import {
 } from "@/lib/groups";
 
 export default function Home() {
-  const { authenticated, client, login } = useFinalWhistle();
+  const { authenticated, client, login, logout, email, address: wallet } = useFinalWhistle();
   const [refreshKey, setRefreshKey] = useState(0);
   const [groups, setGroups] = useState<Group[]>([GLOBAL_GROUP]);
   const [activeId, setActiveId] = useState<string>(GLOBAL_GROUP.id);
+  // The per-Group Feed (CONTEXT.md), mounted on the Group home; Pool pages join the same channel.
+  const displayName = feedDisplayName(email, wallet);
+  const feed = useFeed(authenticated ? `group:${groupPubkey(activeId).toBase58()}` : "", displayName);
 
   // Load Groups from storage and honour an invite link (?join=<id>&name=<name>).
   useEffect(() => {
@@ -112,20 +118,37 @@ export default function Home() {
   }
 
   return (
-    <div className="container">
+    <>
       <nav className="dash-nav">
-        <div className="brand"><span>x</span>Odds</div>
-        <div className="nav-links">
-          <a className="nav-link" href="/" aria-current="page">Pools</a>
-          <a className="nav-link" href="/">Bets</a>
-          <a className="nav-link" href="/">Chat</a>
+        <div className="dash-nav-inner">
+          <div className="brand"><span>x</span>Odds</div>
+          <div className="nav-links">
+            <a className="nav-link" href="/" aria-current="page">Pools</a>
+            <a className="nav-link" href="/">Syndicate</a>
+            <a className="nav-link" href="/">Activity</a>
+            <a className="nav-link" href="/">Profile</a>
+          </div>
+          <div className="nav-right">
+            <button className="nav-icon-btn" aria-label="Notifications"><span className="msym">notifications</span></button>
+            <button className="nav-icon-btn" aria-label="Sign out" title="Sign out" onClick={logout}>
+              <span className="msym">account_circle</span>
+            </button>
+          </div>
         </div>
-        <SignIn />
       </nav>
-      <GroupBar groups={groups} activeId={activeId} onSwitch={switchGroup} onCreate={create} />
-      <GetTestFunds />
-      <CreatePool group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
-      <PoolList group={groupPubkey(activeId)} refreshKey={refreshKey} />
-    </div>
+      <div className="container">
+        <GroupBar groups={groups} activeId={activeId} onSwitch={switchGroup} onCreate={create} online={feed.present} />
+        <GetTestFunds />
+        <CreatePool group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
+        <PoolList group={groupPubkey(activeId)} refreshKey={refreshKey} />
+        <Feed feed={feed} />
+      </div>
+      <nav className="bottom-nav">
+        <a className="bn-item active" href="/"><span className="msym">sports_soccer</span>Pools</a>
+        <a className="bn-item" href="/"><span className="msym">groups</span>Syndicate</a>
+        <a className="bn-item" href="/"><span className="msym">receipt_long</span>Activity</a>
+        <a className="bn-item" href="/"><span className="msym">person</span>Profile</a>
+      </nav>
+    </>
   );
 }
