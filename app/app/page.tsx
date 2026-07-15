@@ -1,6 +1,8 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
+import { NotificationsBell } from "@/components/NotificationsBell";
+import { Profile } from "@/components/Profile";
 import { SignIn } from "@/components/SignIn";
 import { Feed } from "@/components/Feed";
 import { Leaderboard } from "@/components/Leaderboard";
@@ -14,23 +16,38 @@ import { feedDisplayName } from "@/lib/format";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import {
   createGroup,
+  fetchMembers,
+  fetchMyGroups,
   getActiveGroupId,
   GLOBAL_GROUP,
   type Group,
+  type GroupMember,
   groupPubkey,
   joinGroup,
   listGroups,
+  recordMembership,
   setActiveGroupId,
 } from "@/lib/groups";
+
+type Tab = "pools" | "syndicate" | "activity" | "profile";
+
+const TABS: Array<{ id: Tab; label: string; icon: string }> = [
+  { id: "pools", label: "Pools", icon: "sports_soccer" },
+  { id: "syndicate", label: "Syndicate", icon: "groups" },
+  { id: "activity", label: "Activity", icon: "receipt_long" },
+  { id: "profile", label: "Profile", icon: "person" },
+];
 
 export default function Home() {
   const { authenticated, client, login, logout, email, address: wallet } = useFinalWhistle();
   const [refreshKey, setRefreshKey] = useState(0);
+  const [tab, setTab] = useState<Tab>("pools");
   const [groups, setGroups] = useState<Group[]>([GLOBAL_GROUP]);
   const [activeId, setActiveId] = useState<string>(GLOBAL_GROUP.id);
   // The per-Group Feed (CONTEXT.md), mounted on the Group home; Pool pages join the same channel.
   const displayName = feedDisplayName(email, wallet);
-  const feed = useFeed(authenticated ? `group:${groupPubkey(activeId).toBase58()}` : "", displayName);
+  const groupChannel = useMemo(() => `group:${groupPubkey(activeId).toBase58()}`, [activeId]);
+  const feed = useFeed(authenticated ? groupChannel : "", displayName);
 
   // Load Groups from storage and honour an invite link (?join=<id>&name=<name>).
   useEffect(() => {
@@ -45,6 +62,34 @@ export default function Home() {
     setActiveId(getActiveGroupId());
   }, []);
 
+  // Shared membership: once the wallet is known, pull Groups joined on other devices into
+  // the local list, and register every locally-known Group (create or invite-link join)
+  // under this wallet so teammates see you and you survive a device switch.
+  useEffect(() => {
+    if (!wallet) return;
+    void (async () => {
+      const remote = await fetchMyGroups(wallet);
+      remote.forEach(joinGroup);
+      setGroups(listGroups());
+      for (const g of listGroups()) void recordMembership(g, wallet, displayName);
+    })();
+  }, [wallet, displayName]);
+
+  // The active Group's member roster (Syndicate tab). Reset on switch and guard against
+  // an earlier, slower fetch landing after a rapid group change.
+  const [members, setMembers] = useState<GroupMember[]>([]);
+  useEffect(() => {
+    setMembers([]);
+    if (tab !== "syndicate") return;
+    let cancelled = false;
+    void fetchMembers(activeId).then((m) => {
+      if (!cancelled) setMembers(m);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [tab, activeId, wallet]);
+
   function switchGroup(id: string) {
     setActiveGroupId(id);
     setActiveId(id);
@@ -54,6 +99,7 @@ export default function Home() {
     const g = createGroup(name);
     setGroups(listGroups());
     switchGroup(g.id);
+    if (wallet) void recordMembership(g, wallet, displayName);
   }
 
   // Sticker frame — real art cropped from the Stitch screens (public/stickers/*), rotation and
@@ -110,9 +156,9 @@ export default function Home() {
           </div>
         </main>
         <footer className="landing-footer">
-          <span>Terms &amp; Conditions</span>
-          <span>Privacy Policy</span>
-          <span>Responsible Gaming</span>
+          <a href="/legal#terms">Terms &amp; Conditions</a>
+          <a href="/legal#privacy">Privacy Policy</a>
+          <a href="/legal#responsible">Responsible Gaming</a>
         </footer>
       </div>
     );
@@ -124,13 +170,19 @@ export default function Home() {
         <div className="dash-nav-inner">
           <div className="brand"><span>x</span>Odds</div>
           <div className="nav-links">
-            <a className="nav-link" href="/" aria-current="page">Pools</a>
-            <a className="nav-link" href="/">Syndicate</a>
-            <a className="nav-link" href="/">Activity</a>
-            <a className="nav-link" href="/">Profile</a>
+            {TABS.map((t) => (
+              <button
+                key={t.id}
+                className="nav-link"
+                aria-current={tab === t.id ? "page" : undefined}
+                onClick={() => setTab(t.id)}
+              >
+                {t.label}
+              </button>
+            ))}
           </div>
           <div className="nav-right">
-            <button className="nav-icon-btn" aria-label="Notifications"><span className="msym">notifications</span></button>
+            <NotificationsBell events={feed.events} groupId={activeId} />
             <button className="nav-icon-btn" aria-label="Sign out" title="Sign out" onClick={logout}>
               <span className="msym">account_circle</span>
             </button>
@@ -139,17 +191,54 @@ export default function Home() {
       </nav>
       <div className="container">
         <GroupBar groups={groups} activeId={activeId} onSwitch={switchGroup} onCreate={create} online={feed.present} />
-        <GetTestFunds />
-        <CreatePool group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
-        <PoolList group={groupPubkey(activeId)} refreshKey={refreshKey} />
-        <Leaderboard groupChannel={`group:${groupPubkey(activeId).toBase58()}`} />
-        <Feed feed={feed} />
+        {tab === "pools" && (
+          <>
+            <GetTestFunds />
+            <CreatePool group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
+            <PoolList group={groupPubkey(activeId)} refreshKey={refreshKey} />
+          </>
+        )}
+        {tab === "syndicate" && (
+          <>
+            <Leaderboard groupChannel={groupChannel} />
+            <div className="panel stack">
+              <h2>Members</h2>
+              {members.length === 0 && feed.present.length === 0 ? (
+                <span className="muted">Nobody else is here — send the invite link from the banner above.</span>
+              ) : (
+                members.map((m) => (
+                  <div key={m.wallet} className="row between">
+                    <span className="row"><span className="msym">person</span><strong>{m.name}</strong></span>
+                    {feed.present.includes(m.name) && <span className="badge">ONLINE</span>}
+                  </div>
+                ))
+              )}
+              {/* presence not yet in the members table (e.g. Supabase table missing) still shows */}
+              {feed.present
+                .filter((name) => !members.some((m) => m.name === name))
+                .map((name) => (
+                  <div key={name} className="row between">
+                    <span className="row"><span className="msym">person</span><strong>{name}</strong></span>
+                    <span className="badge">ONLINE</span>
+                  </div>
+                ))}
+            </div>
+          </>
+        )}
+        {tab === "activity" && <Feed feed={feed} />}
+        {tab === "profile" && <Profile email={email} wallet={wallet} displayName={displayName} onSignOut={logout} />}
       </div>
       <nav className="bottom-nav">
-        <a className="bn-item active" href="/"><span className="msym">sports_soccer</span>Pools</a>
-        <a className="bn-item" href="/"><span className="msym">groups</span>Syndicate</a>
-        <a className="bn-item" href="/"><span className="msym">receipt_long</span>Activity</a>
-        <a className="bn-item" href="/"><span className="msym">person</span>Profile</a>
+        {TABS.map((t) => (
+          <button
+            key={t.id}
+            className={`bn-item${tab === t.id ? " active" : ""}`}
+            onClick={() => setTab(t.id)}
+          >
+            <span className="msym">{t.icon}</span>
+            {t.label}
+          </button>
+        ))}
       </nav>
     </>
   );
