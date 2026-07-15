@@ -16,6 +16,13 @@ export default function RootLayout({ children }: { children: React.ReactNode }) 
   return (
     // Font variables live on <html> so :root-level token indirection (--display etc.) can see them.
     <html lang="en" className={`${display.variable} ${body.variable} ${mono.variable}`}>
+      <head>
+        {/* Material Symbols — the icon font the Stitch component uses (nav + sport icons) */}
+        <link
+          href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@24,400,0,0&display=block"
+          rel="stylesheet"
+        />
+      </head>
       <body>
         <Providers>{children}</Providers>
       </body>
