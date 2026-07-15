@@ -825,6 +825,12 @@ export type Finalwhistle = {
           },
           {
             "name": "totalGoals"
+          },
+          {
+            "name": "totalCorners"
+          },
+          {
+            "name": "totalCards"
           }
         ]
       }

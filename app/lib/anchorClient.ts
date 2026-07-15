@@ -11,13 +11,15 @@ import { usdcMint } from "./config";
 import { entryPda, escrowPda, poolPda } from "./pdas";
 
 export type PoolState = "open" | "locked" | "settled" | "void";
-export type PoolTypeName = "matchWinner" | "totalGoals";
+export type PoolTypeName = "matchWinner" | "totalGoals" | "totalCorners" | "totalCards";
 
 const POOL_TYPE_ARG: Record<PoolTypeName, object> = {
   matchWinner: { matchWinner: {} },
   totalGoals: { totalGoals: {} },
+  totalCorners: { totalCorners: {} },
+  totalCards: { totalCards: {} },
 };
-const POOL_TYPE_BYTE: Record<PoolTypeName, number> = { matchWinner: 0, totalGoals: 1 };
+const POOL_TYPE_BYTE: Record<PoolTypeName, number> = { matchWinner: 0, totalGoals: 1, totalCorners: 2, totalCards: 3 };
 
 export interface ProvenStats {
   homeGoals: number;

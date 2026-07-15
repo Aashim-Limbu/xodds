@@ -71,12 +71,10 @@ export function outcomeLabels(f: Fixture): [string, string, string] {
 }
 
 /** Outcome labels for any Pool Type: 1X2 for MatchWinner, Over/Under for Total Goals. */
-export function poolOutcomeLabels(
-  poolType: "matchWinner" | "totalGoals",
-  lineX2: number,
-  f?: Fixture,
-): string[] {
-  if (poolType === "totalGoals") {
+export type AnyPoolType = "matchWinner" | "totalGoals" | "totalCorners" | "totalCards";
+
+export function poolOutcomeLabels(poolType: AnyPoolType, lineX2: number, f?: Fixture): string[] {
+  if (poolType !== "matchWinner") {
     const line = lineX2 / 2;
     return [`Over ${line}`, `Under ${line}`];
   }
@@ -84,6 +82,12 @@ export function poolOutcomeLabels(
 }
 
 /** Human label for a Pool Type. */
-export function poolTypeLabel(poolType: "matchWinner" | "totalGoals", lineX2: number): string {
-  return poolType === "totalGoals" ? `Total Goals O/U ${lineX2 / 2}` : "Match Winner (1X2)";
+const OU_LABEL: Record<Exclude<AnyPoolType, "matchWinner">, string> = {
+  totalGoals: "Total Goals",
+  totalCorners: "Total Corners",
+  totalCards: "Total Cards",
+};
+
+export function poolTypeLabel(poolType: AnyPoolType, lineX2: number): string {
+  return poolType === "matchWinner" ? "Match Winner (1X2)" : `${OU_LABEL[poolType]} O/U ${lineX2 / 2}`;
 }

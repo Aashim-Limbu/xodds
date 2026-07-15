@@ -49,7 +49,10 @@ export interface TxlineLive {
 // ponytail: which SuperOddsType / period is full-time 1X2, and the PriceNames order, are our
 // read of the odds docs. Pin against one real World Cup line and adjust here — single locus.
 const MATCH_ODDS_TYPE = "1X2";
-const isFullTime = (p: OddsPayload) => !p.InRunning && (!p.MarketPeriod || /full|match|ft/i.test(p.MarketPeriod));
+// In-running lines are deliberately INCLUDED: pre-kickoff the feed carries pre-match lines,
+// in-play it carries InRunning ones — latest-Ts-wins means Reference Odds become live win
+// probabilities once the match starts (the Locked-state ticker).
+const isFullTime = (p: OddsPayload) => !p.MarketPeriod || /full|match|ft/i.test(p.MarketPeriod);
 const HOME_NAMES = new Set(["1", "home", "h"]);
 const DRAW_NAMES = new Set(["x", "draw", "tie"]);
 const AWAY_NAMES = new Set(["2", "away", "a"]);

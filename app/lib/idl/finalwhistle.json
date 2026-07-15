@@ -819,6 +819,12 @@
           },
           {
             "name": "TotalGoals"
+          },
+          {
+            "name": "TotalCorners"
+          },
+          {
+            "name": "TotalCards"
           }
         ]
       }
