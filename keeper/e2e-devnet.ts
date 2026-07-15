@@ -8,8 +8,8 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Connection, Keypair, PublicKey, SystemProgram, Transaction } from "@solana/web3.js";
-import idl from "../target/idl/finalwhistle.json";
-import type { Finalwhistle } from "../target/types/finalwhistle.js";
+import idl from "./idl/finalwhistle.json";
+import type { Finalwhistle } from "./idl/finalwhistle.js";
 import { buildScoreProof, scoresRootPda } from "./merkle.js";
 import { StandInTxLine } from "./txline.js";
 
