@@ -202,8 +202,57 @@ select, input {
   text-decoration: none;
 }
 .nav-link:hover { color: #221b00; transform: translateY(1px); }
-.nav-link[aria-current="page"] { color: #221b00; }
+.nav-link[aria-current="page"] { color: #221b00; text-decoration: underline; text-underline-offset: 5px; text-decoration-thickness: 3px; }
+/* nav tabs are <button>s now — strip the chunky default button chrome */
+button.nav-link, button.bn-item {
+  background: transparent;
+  border: 0;
+  box-shadow: none;
+  padding: 0;
+  text-transform: none;
+  letter-spacing: normal;
+}
+button.nav-link:hover { background: transparent; box-shadow: none; }
+button.bn-item:hover { transform: none; box-shadow: none; background: transparent; }
+button.bn-item.active { background: var(--yellow); padding: 4px 16px; box-shadow: 2px 2px 0 0 var(--ink); }
+button.bn-item.active:hover { background: var(--yellow); box-shadow: 2px 2px 0 0 var(--ink); }
 .nav-right { display: flex; align-items: center; gap: 6px; }
+
+/* ---- Notifications bell ---- */
+.notif { position: relative; }
+.notif-dot {
+  position: absolute;
+  top: 2px;
+  right: 0;
+  background: var(--danger);
+  color: #fff;
+  font-family: var(--mono);
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 999px;
+  border: 2px solid var(--ink);
+}
+.notif-panel {
+  position: absolute;
+  right: 0;
+  top: calc(100% + 10px);
+  z-index: 60;
+  width: min(320px, 84vw);
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+.notif-item { font-size: 13px; border-bottom: 1px dashed var(--muted); padding-bottom: 6px; }
+.notif-item:last-child { border-bottom: 0; padding-bottom: 0; }
+
+.label { font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .nav-icon-btn {
   background: transparent;
   border: 0;
@@ -394,6 +443,13 @@ select, input {
   gap: 24px;
   justify-content: center;
   padding: 14px;
+}
+.landing-footer a {
+  color: #fff;
+  font-weight: 600;
+  text-decoration: none;
+}
+.landing-footer a:hover { color: var(--yellow); text-decoration: underline;
   position: relative;
   z-index: 2;
 }
