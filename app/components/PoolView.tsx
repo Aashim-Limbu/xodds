@@ -7,7 +7,7 @@ import { useFeed } from "@/lib/feed";
 import type { PoolAccount, PoolState } from "@/lib/anchorClient";
 import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
 import { useTxlineLive } from "@/lib/useTxlineLive";
-import { decimalOdds, formatUsdc, parseUsdc } from "@/lib/format";
+import { decimalOdds, feedDisplayName, formatUsdc, parseUsdc } from "@/lib/format";
 import { friendlyError } from "@/lib/errors";
 import { Feed } from "./Feed";
 import { ProofReceipt } from "./ProofReceipt";
@@ -31,18 +31,16 @@ const SYSTEM_POST: Partial<Record<PoolState, string>> = {
   void: "↩️ Pool Voided — every Entry is refunded in full.",
 };
 
-function short(s: string): string {
-  return `${s.slice(0, 4)}…${s.slice(-4)}`;
-}
-
 /** Live view of one Pool: pot, per-Outcome totals + Reference Odds, place Entry, the live
  * Feed, and — once Settled — the Proof Receipt. */
 export function PoolView({ address }: { address: string }) {
   const { client, email, address: wallet } = useFinalWhistle();
-  const displayName = email ?? (wallet ? short(wallet) : "anon");
-  const feed = useFeed(address, displayName);
+  const displayName = feedDisplayName(email, wallet);
   const poolKey = new PublicKey(address);
   const [pool, setPool] = useState<PoolAccount | null>(null);
+  // Feed is per-Group (CONTEXT.md): every Pool in the Group shares one stream, so system
+  // posts carry the Fixture for context. "" until the Pool loads -> hook waits.
+  const feed = useFeed(pool ? `group:${pool.group.toBase58()}` : "", displayName);
   const [myEntries, setMyEntries] = useState<(bigint | null)[]>([null, null, null]);
   const [amount, setAmount] = useState("5");
   const [busy, setBusy] = useState(false);
@@ -76,11 +74,12 @@ export function PoolView({ address }: { address: string }) {
     if (!pool) return;
     if (lastState.current && lastState.current !== pool.state) {
       const line = SYSTEM_POST[pool.state];
-      if (line) feed.postSystem(`sys:${address}:${pool.state}`, line);
+      const fx = fixtureById(pool.fixtureId);
+      const tag = fx ? `${fx.home} vs ${fx.away} — ` : "";
+      if (line) feed.postSystem(`sys:${address}:${pool.state}`, `${tag}${line}`);
       // Fixture events auto-post as the match plays. Stand-in for TxLINE's scores stream
       // (no live feed here) — scripted events replay once when the Pool Locks.
       if (pool.state === "locked") {
-        const fx = fixtureById(pool.fixtureId);
         const events = live.matchEvents ?? fx?.matchEvents;
         events?.forEach((ev, i) => feed.postSystem(`fx:${address}:${i}`, ev));
       }
@@ -182,6 +181,15 @@ export function PoolView({ address }: { address: string }) {
               <div className="pot">${formatUsdc(pool.pot)}</div>
             </div>
           </div>
+          {pool.state === "locked" && live.score && (
+            <div className="live-strip" role="status">
+              <span className="live-dot" aria-hidden="true" />
+              <span className="live-phase">{live.score.phase}</span>
+              <span className="live-score">
+                {fixture?.home ?? "Home"} {live.score.home}–{live.score.away} {fixture?.away ?? "Away"}
+              </span>
+            </div>
+          )}
           {pool.state === "void" && (
             <p className="error" style={{ marginBottom: 0 }}>
               Void — {pool.voidReason ? VOID_REASON_LABEL[pool.voidReason] : "no paying Outcome"}. Every
@@ -200,6 +208,7 @@ export function PoolView({ address }: { address: string }) {
                   {isWinner && <span className="badge settled">Winner</span>}
                   <span className="outcome-label">{label}</span>
                   <span className="odds">
+                    {showOdds && live.referenceProbabilities && <span className="odds-live">LIVE</span>}
                     {showOdds ? `Odds ${decimalOdds(probs[o])} · ` : ""}${formatUsdc(pool.outcomeTotals[o])} in
                     {mine ? ` · yours $${formatUsdc(mine)}` : ""}
                   </span>
