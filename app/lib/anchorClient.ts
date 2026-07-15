@@ -4,10 +4,10 @@ import {
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { type Connection, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
 import idl from "./idl/finalwhistle.json";
 import type { Finalwhistle } from "./idl/finalwhistle";
-import { usdcMint } from "./config";
+import { RPC_URL, usdcMint } from "./config";
 import { entryPda, escrowPda, poolPda } from "./pdas";
 
 export type PoolState = "open" | "locked" | "settled" | "void";
@@ -255,4 +255,18 @@ export class FinalWhistleClient {
 /** Lowercase hex of a byte array, for rendering roots and Merkle nodes. */
 export function toHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * A wallet-less client for PUBLIC reads (share pages, OG images) — settlement data is all
+ * on-chain. The dummy signer throws if anything tries to sign; only read paths use this.
+ * Runs on the server (OG route) and the browser (public receipt page).
+ */
+export function readOnlyClient(): FinalWhistleClient {
+  const connection = new Connection(RPC_URL, "confirmed");
+  const noSign = (): never => {
+    throw new Error("readOnlyClient cannot sign");
+  };
+  const wallet = { publicKey: PublicKey.default, signTransaction: noSign, signAllTransactions: noSign } as unknown as Wallet;
+  return new FinalWhistleClient(connection, wallet);
 }
