@@ -925,3 +925,13 @@ select, input {
 .lb-net { font-family: var(--font-mono), monospace; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
 .lb-net.up { color: var(--good, #00873c); }
 .lb-net.down { color: var(--danger, #d32f2f); }
+
+/* Share Proof Receipt button. */
+.share-btn {
+  display: inline-flex; align-items: center; gap: 8px;
+  background: var(--blue, #0046fa); color: #fff; border: 3px solid var(--ink);
+  box-shadow: var(--shadow-sm); padding: 8px 14px; font-weight: 800; font-size: 14px;
+  cursor: pointer;
+}
+.share-btn:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 var(--ink); }
+.share-btn .msym { font-size: 18px; }

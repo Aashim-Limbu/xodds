@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
-import { type PoolTypeName, type SettlementReceipt, toHex } from "@/lib/anchorClient";
+import { type PoolTypeName, readOnlyClient, type SettlementReceipt, toHex } from "@/lib/anchorClient";
 import { verifyScoreProof } from "@/lib/proof";
 import { scoresRootPda } from "@/lib/pdas";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
@@ -29,9 +29,13 @@ export function ProofReceipt({
   poolType: PoolTypeName;
   lineX2: number;
 }) {
-  const { client } = useFinalWhistle();
+  const { client: authed } = useFinalWhistle();
+  // Settlement is public: fall back to a wallet-less client so the receipt renders on the
+  // public share page (and to any signed-out viewer) exactly as it does in-app.
+  const client = useMemo(() => authed ?? readOnlyClient(), [authed]);
   const [receipt, setReceipt] = useState<SettlementReceipt | null>(null);
   const [loading, setLoading] = useState(true);
+  const [shared, setShared] = useState(false);
 
   useEffect(() => {
     if (!client) return;
@@ -61,6 +65,23 @@ export function ProofReceipt({
   const p = receipt.proven;
   const explorer = `https://explorer.solana.com/tx/${receipt.signature}?cluster=devnet`;
 
+  async function share() {
+    const url = `${window.location.origin}/receipt/${address}`;
+    const text = `Proven on-chain: ${labels[receipt!.winningOutcome]} — nobody, including us, chose it.`;
+    // Native share sheet on mobile; clipboard everywhere else.
+    if (navigator.share) {
+      try {
+        await navigator.share({ title: "xOdds Proof Receipt", text, url });
+        return;
+      } catch {
+        /* user cancelled — fall through to copy */
+      }
+    }
+    await navigator.clipboard.writeText(url);
+    setShared(true);
+    setTimeout(() => setShared(false), 1600);
+  }
+
   return (
     <div className="receipt-split">
       <div className="proven-panel">
@@ -78,8 +99,14 @@ export function ProofReceipt({
             <span>{fixture.away}</span>
           </div>
         )}
-        <div className="receipt-strong" style={{ textTransform: "uppercase" }}>
-          {labels[receipt.winningOutcome]} wins
+        <div className="row" style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
+          <div className="receipt-strong" style={{ textTransform: "uppercase" }}>
+            {labels[receipt.winningOutcome]} wins
+          </div>
+          <button className="share-btn" onClick={share}>
+            <span className="msym">ios_share</span>
+            {shared ? "Link copied ✓" : "Share receipt"}
+          </button>
         </div>
         <p className="muted" style={{ margin: 0, fontSize: 13 }}>
           Nobody, including us, chose this outcome. It was proven on-chain from TxLINE&rsquo;s Score
