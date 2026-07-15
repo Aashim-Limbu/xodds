@@ -3,6 +3,7 @@
 import { useEffect, useState } from "react";
 import { SignIn } from "@/components/SignIn";
 import { Feed } from "@/components/Feed";
+import { Leaderboard } from "@/components/Leaderboard";
 import { CreatePool } from "@/components/CreatePool";
 import { GetTestFunds } from "@/components/GetTestFunds";
 import { GroupBar } from "@/components/GroupBar";
@@ -141,6 +142,7 @@ export default function Home() {
         <GetTestFunds />
         <CreatePool group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
         <PoolList group={groupPubkey(activeId)} refreshKey={refreshKey} />
+        <Leaderboard groupChannel={`group:${groupPubkey(activeId).toBase58()}`} />
         <Feed feed={feed} />
       </div>
       <nav className="bottom-nav">

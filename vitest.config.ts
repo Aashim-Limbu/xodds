@@ -7,6 +7,9 @@ export default defineConfig({
     // bankrun loads a native addon and each suite spins its own in-process SVM;
     // run files in separate forked processes to keep those SVMs isolated.
     pool: "forks",
+    // ...but run those forks one at a time: parallel SVMs that advance the clock race on
+    // blockhash expiry ("Blockhash not found"). Serial is still ~11s for the whole suite.
+    fileParallelism: false,
     testTimeout: 30_000,
     hookTimeout: 30_000,
     include: ["tests/**/*.test.ts"],

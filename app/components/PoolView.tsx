@@ -7,6 +7,7 @@ import { useFeed } from "@/lib/feed";
 import type { PoolAccount, PoolState } from "@/lib/anchorClient";
 import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
 import { useTxlineLive } from "@/lib/useTxlineLive";
+import { recordResult } from "@/lib/useLeaderboard";
 import { decimalOdds, feedDisplayName, formatUsdc, parseUsdc } from "@/lib/format";
 import { friendlyError } from "@/lib/errors";
 import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
@@ -50,6 +51,7 @@ export function PoolView({ address }: { address: string }) {
   const [paidAmount, setPaidAmount] = useState<bigint | null>(null);
   const claimInFlight = useRef(false);
   const lastState = useRef<PoolState | null>(null);
+  const recorded = useRef(false); // guards the one leaderboard write per settled Pool view
   // Real TxLINE Reference Odds + Feed lines when a token is configured; {} (static fallback) otherwise.
   const live = useTxlineLive(pool?.fixtureId ?? 0n);
 
@@ -121,6 +123,22 @@ export function PoolView({ address }: { address: string }) {
     if (!myEntries[pool.winningOutcome] || claimStatus !== "idle" || claimInFlight.current) return;
     doClaim();
   }, [pool, myEntries, claimStatus, doClaim]);
+
+  // Record this User's result to the Group leaderboard, once, when the Pool Settles — winning
+  // Entries are closed on claim (ADR-0004), so standings are captured here, not read from chain.
+  useEffect(() => {
+    if (!pool || pool.state !== "settled" || pool.winningOutcome === null || recorded.current || !wallet) return;
+    const staked = myEntries.reduce((sum: bigint, e) => sum + (e ?? 0n), 0n);
+    if (staked === 0n) return; // this User didn't back this Pool
+    recorded.current = true;
+    const winEntry = myEntries[pool.winningOutcome] ?? 0n;
+    const winTotal = pool.outcomeTotals[pool.winningOutcome];
+    const won = winEntry > 0n && winTotal > 0n ? (winEntry * pool.pot) / winTotal : 0n;
+    const channel = `group:${pool.group.toBase58()}`;
+    void recordResult(channel, { pool: address, wallet, name: displayName, staked, won, ts: Date.now() }).then((streak) => {
+      if (streak && streak >= 3) feed.postSystem(`streak:${wallet}:${streak}`, `🔥 ${displayName} is on a ${streak}-win streak!`);
+    });
+  }, [pool, myEntries, wallet, address, displayName, feed]);
 
   if (!pool) return <div className="panel muted">Loading Pool…</div>;
 

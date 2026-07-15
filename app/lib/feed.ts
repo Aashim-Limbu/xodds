@@ -1,17 +1,16 @@
 "use client";
 
-import { createClient, type RealtimeChannel } from "@supabase/supabase-js";
+import { type RealtimeChannel } from "@supabase/supabase-js";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { FEED_ENABLED, SUPABASE_ANON_KEY, SUPABASE_URL } from "./config";
+import { FEED_ENABLED } from "./config";
 import { mergeEvents, type FeedEvent } from "./feedEvents";
+import { supabase } from "./supabase";
 
 export type { FeedEvent, FeedEventKind } from "./feedEvents";
 
-// A single shared Supabase client (rented realtime, ADR-0006). Anon key only — Realtime
-// channels for the live layer, plus a public `feed_events` table for history (see DEMO.md
-// for the one-time SQL). If the table doesn't exist, the Feed degrades to ephemeral
+// Realtime channels for the live layer, plus a public `feed_events` table for history (see
+// DEMO.md for the one-time SQL). If the table doesn't exist, the Feed degrades to ephemeral
 // broadcast-only — exactly the old behavior — rather than breaking.
-const supabase = FEED_ENABLED ? createClient(SUPABASE_URL, SUPABASE_ANON_KEY) : null;
 
 export interface FeedApi {
   enabled: boolean;
@@ -48,13 +47,14 @@ export function useFeed(channelKey: string, displayName: string): FeedApi {
   }, []);
 
   useEffect(() => {
-    if (!supabase || !channelKey) return;
+    const sb = supabase;
+    if (!sb || !channelKey) return;
     let cancelled = false; // guards the async history fetch against a Group switch mid-flight
     posted.current = new Set();
     setEvents([]);
 
     // History first — late joiners and reloads see the Group's record, not an empty room.
-    supabase
+    sb
       .from("feed_events")
       .select("id, kind, author, text, ts")
       .eq("channel", channelKey)
@@ -65,7 +65,7 @@ export function useFeed(channelKey: string, displayName: string): FeedApi {
         // error (e.g. table missing) -> ephemeral mode, same as before persistence existed
       });
 
-    const channel = supabase.channel(channelKey, {
+    const channel = sb.channel(channelKey, {
       // Presence keyed per-client (not per-name) so two "anon"s or two devices count as two;
       // the tracked payload still carries the display name.
       config: { broadcast: { self: true }, presence: { key: presenceKey.current } },
@@ -91,7 +91,7 @@ export function useFeed(channelKey: string, displayName: string): FeedApi {
     channelRef.current = channel;
     return () => {
       cancelled = true;
-      supabase.removeChannel(channel);
+      sb.removeChannel(channel);
       channelRef.current = null;
       setReady(false);
       setPresent([]);
