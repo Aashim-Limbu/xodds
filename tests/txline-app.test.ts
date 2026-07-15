@@ -20,15 +20,15 @@ describe("pick1x2Probabilities", () => {
     expect(p[0] + p[1] + p[2]).toBeCloseTo(1);
   });
 
-  it("prefers the latest line and ignores in-running / non-1X2", () => {
+  it("prefers the latest line (in-running included — the live ticker) and ignores non-1X2", () => {
     const p = pick1x2Probabilities([
       line({ Ts: 1, Pct: ["90.000", "5.000", "5.000"] }),
       line({ Ts: 9, Pct: ["40.000", "20.000", "40.000"] }),
-      line({ InRunning: true, Pct: ["1.000", "1.000", "98.000"] }),
-      line({ SuperOddsType: "OverUnder" }),
+      line({ Ts: 20, InRunning: true, Pct: ["70.000", "20.000", "10.000"] }),
+      line({ Ts: 99, SuperOddsType: "OverUnder" }),
     ])!;
-    expect(p[0]).toBeCloseTo(0.4);
-    expect(p[2]).toBeCloseTo(0.4);
+    expect(p[0]).toBeCloseTo(0.7); // the in-play line, being latest, wins
+    expect(p[2]).toBeCloseTo(0.1);
   });
 
   it("returns undefined when no usable 1X2 line exists", () => {

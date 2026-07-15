@@ -9,6 +9,7 @@ import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
 import { useTxlineLive } from "@/lib/useTxlineLive";
 import { decimalOdds, feedDisplayName, formatUsdc, parseUsdc } from "@/lib/format";
 import { friendlyError } from "@/lib/errors";
+import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
 import { Feed } from "./Feed";
 import { ProofReceipt } from "./ProofReceipt";
 
@@ -148,6 +149,30 @@ export function PoolView({ address }: { address: string }) {
     }
   }
 
+  // "Run it back": recreate this Pool (same Fixture, Pool Type, and Line) with the next free
+  // nonce, challenge the Group in the Feed, and jump to the new Pool.
+  async function rematch() {
+    if (!client || !pool) return;
+    setBusy(true);
+    setError(null);
+    try {
+      const existing = await client.listPools(pool.group);
+      const nonce = BigInt(
+        existing.filter((p) => p.fixtureId === pool.fixtureId && p.poolType === pool.poolType).length,
+      );
+      const kickoff = Math.floor(Date.now() / 1000) + KICKOFF_OFFSET_SECONDS;
+      const newPool = await client.createPool(pool.group, pool.fixtureId, nonce, kickoff, pool.poolType, pool.lineX2);
+      feed.postSystem(
+        `rematch:${newPool.toBase58()}`,
+        `🔁 ${displayName} wants a rematch — ${poolTypeLabel(pool.poolType, pool.lineX2)} Pool is open!`,
+      );
+      window.location.href = `/pool/${newPool.toBase58()}`;
+    } catch (e) {
+      setError(friendlyError(e));
+      setBusy(false);
+    }
+  }
+
   async function back(outcome: number) {
     if (!client) return;
     const entered = parseUsdc(amount);
@@ -209,7 +234,11 @@ export function PoolView({ address }: { address: string }) {
                   <span className="outcome-label">{label}</span>
                   <span className="odds">
                     {showOdds && live.referenceProbabilities && <span className="odds-live">LIVE</span>}
-                    {showOdds ? `Odds ${decimalOdds(probs[o])} · ` : ""}${formatUsdc(pool.outcomeTotals[o])} in
+                    {/* Open: sharp-market odds. Locked with live data: the win-probability ticker. */}
+                    {showOdds && (pool.state === "locked" && live.referenceProbabilities
+                      ? `Win ${Math.round(probs[o] * 100)}% · `
+                      : `Odds ${decimalOdds(probs[o])} · `)}
+                    ${formatUsdc(pool.outcomeTotals[o])} in
                     {mine ? ` · yours $${formatUsdc(mine)}` : ""}
                   </span>
                   {pool.state === "open" && (
@@ -241,6 +270,11 @@ export function PoolView({ address }: { address: string }) {
           )}
           {claimStatus === "paid" && (
             <p className="entry-note">✅ Paid ${formatUsdc(paidAmount ?? 0n)} to your wallet.</p>
+          )}
+          {(pool.state === "settled" || pool.state === "void") && (
+            <button disabled={busy || !client} onClick={rematch}>
+              🔁 Run it back — same Pool, new game
+            </button>
           )}
           {myWinEntry && claimStatus === "claiming" && (
             <p className="entry-note">🎉 Claiming your ${formatUsdc(myPayout)} payout…</p>
