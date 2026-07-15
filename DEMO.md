@@ -29,7 +29,29 @@ The exact startup order and a 3-minute walkthrough. Everything runs on devnet; t
    create policy "anyone can post" on feed_events for insert with check (true);
    ```
 
-   (Anon-writable by design for the demo — the Feed is a public social layer, not a money path.)
+   And the leaderboard's durable standings (each client records its own settled-Pool result;
+   winning Entries are closed on claim, so this can't be read back from chain):
+
+   ```sql
+   create table if not exists pool_results (
+     id text primary key,          -- '<pool>:<wallet>', write-once per user per Pool
+     pool text not null,
+     channel text not null,        -- 'group:<groupId>'
+     wallet text not null,
+     name text not null,
+     staked numeric not null,
+     won numeric not null,
+     ts bigint not null
+   );
+   create index if not exists pool_results_channel on pool_results (channel);
+   alter table pool_results enable row level security;
+   create policy "results are public" on pool_results for select using (true);
+   create policy "anyone can record" on pool_results for insert with check (true);
+   alter publication supabase_realtime add table pool_results;  -- live board updates
+   ```
+
+   (Anon-writable by design for the demo — the Feed and leaderboard are a public social layer,
+   not a money path. A client can only report its OWN result.)
 3. **Publish demo score roots** (so `settle` has TxLINE-owned roots to verify): from repo root
    `pnpm publish-roots` (idempotent; uses the deploy wallet).
 
@@ -57,6 +79,9 @@ If the keeper isn't running, nothing Locks or Settles — start it first.
 5. **Full time** — keeper submits the Score Proof; Pool Settles; the winner's payout
    auto-claims. Open the **Proof Receipt**: proven stats, score root, Merkle path, settle tx —
    "nobody, including us, chose this outcome."
+6. **Back on the Group home** — the **Leaderboard** now shows both players ranked by net USDC,
+   win record, and 🔥 streak; a third settled win auto-posts a streak sticker to the Feed. Hit
+   **Run it back** on the settled Pool to rematch and watch the standings move.
 
 ## Known demo caveats
 

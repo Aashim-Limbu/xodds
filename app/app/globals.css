@@ -910,3 +910,18 @@ select, input {
   background: var(--danger); color: #fff; border: 2px solid var(--ink);
   font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
 }
+
+/* Group leaderboard — season standings from settled Pools. */
+.lb-table { display: flex; flex-direction: column; }
+.lb-row {
+  display: grid; grid-template-columns: 32px 1fr auto auto; align-items: center; gap: 12px;
+  padding: 10px 4px; border-bottom: 2px dashed rgba(31,27,16,0.14);
+}
+.lb-row:last-child { border-bottom: 0; }
+.lb-rank { font-size: 18px; font-weight: 800; text-align: center; }
+.lb-name { font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lb-streak { margin-left: 8px; font-size: 12px; font-weight: 700; }
+.lb-record { font-family: var(--font-mono), monospace; font-size: 12px; font-weight: 600; color: var(--muted, #4d4632); }
+.lb-net { font-family: var(--font-mono), monospace; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
+.lb-net.up { color: var(--good, #00873c); }
+.lb-net.down { color: var(--danger, #d32f2f); }
