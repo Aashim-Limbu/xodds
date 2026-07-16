@@ -85,6 +85,17 @@ export class FinalWhistleClient {
     return this.program.provider.publicKey!;
   }
 
+  /** First free nonce for a Group + Fixture + Pool Type, probed against the chain. Counting
+   * decodable Pools is not enough: pre-upgrade relic accounts still occupy their PDAs (they
+   * are skipped by listPools) and would collide with a count-derived nonce. */
+  async freeNonce(group: PublicKey, fixtureId: bigint, poolType: PoolTypeName): Promise<bigint> {
+    const conn = this.program.provider.connection;
+    for (let nonce = 0n; ; nonce++) {
+      const pda = poolPda(group, fixtureId, nonce, POOL_TYPE_BYTE[poolType]);
+      if (!(await conn.getAccountInfo(pda))) return nonce;
+    }
+  }
+
   /** Create a Pool on a Fixture in `group`; returns the Pool address. `lineX2` is the
    * Over/Under Line × 2 (odd half-integer) for `totalGoals`; ignored for `matchWinner`. */
   async createPool(
@@ -200,7 +211,8 @@ export class FinalWhistleClient {
     const pools: PoolAccount[] = [];
     for (const { pubkey, account } of raw) {
       try {
-        pools.push(this.decode(pubkey, this.program.coder.accounts.decode("Pool", account.data)));
+        // NB: the accounts coder keys layouts by camelCased IDL name — "pool", not "Pool".
+        pools.push(this.decode(pubkey, this.program.coder.accounts.decode("pool", account.data)));
       } catch {
         // not a current-layout Pool — skip
       }
