@@ -8,6 +8,8 @@ export interface Fixture {
   home: string;
   away: string;
   kickoff: number; // unix seconds
+  /** Competition name from TxLINE ("World Cup", "Friendlies"); "Demo" for the static slate. */
+  competition?: string;
   /** Reference Odds as implied probabilities per Outcome [home win, draw, away win]. */
   referenceProbabilities: [number, number, number];
   /** Scripted in-match events for the Feed — a stand-in for TxLINE's live scores stream
@@ -56,11 +58,17 @@ export function fixtureById(id: bigint): Fixture | undefined {
  * live TxLINE routes provide those. ponytail: module-level mutation, fine for a client slate;
  * move to context if fixtures ever need to be reactive outside useFixtures().
  */
-export function hydrateFixtures(real: Array<{ fixtureId: string; home: string; away: string; kickoff: number }>): void {
+export function hydrateFixtures(
+  real: Array<{ fixtureId: string; home: string; away: string; kickoff: number; competition?: string }>,
+): void {
   for (const r of real) {
     const id = BigInt(r.fixtureId);
     if (!FIXTURES.some((f) => f.fixtureId === id)) {
-      FIXTURES.push({ fixtureId: id, home: r.home, away: r.away, kickoff: r.kickoff, referenceProbabilities: [0, 0, 0] });
+      FIXTURES.push({
+        fixtureId: id, home: r.home, away: r.away, kickoff: r.kickoff,
+        competition: r.competition || "Friendlies",
+        referenceProbabilities: [0, 0, 0],
+      });
     }
   }
 }

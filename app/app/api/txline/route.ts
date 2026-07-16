@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { finalisedFeedLines, liveScore, pick1x2Probabilities, type OddsPayload, type ScoresRecord, type TxlineLive } from "@/lib/txline";
+import { finalisedFeedLines, liveScore, normalizeScores, pick1x2Probabilities, pickGoalLines, type OddsPayload, type TxlineLive } from "@/lib/txline";
 
 // Server-side proxy to the real TxLINE devnet feed. Holds the API token so it never reaches
 // the browser (the trust boundary — same as the faucet route). Returns real Reference Odds +
@@ -31,9 +31,15 @@ export async function GET(req: Request): Promise<Response> {
     ]);
 
     const out: TxlineLive = {};
-    if (oddsRes.ok) out.referenceProbabilities = pick1x2Probabilities((await oddsRes.json()) as OddsPayload[]);
+    if (oddsRes.ok) {
+      const odds = (await oddsRes.json()) as OddsPayload[];
+      out.referenceProbabilities = pick1x2Probabilities(odds);
+      const goalLines = pickGoalLines(odds);
+      if (goalLines.length) out.goalLines = goalLines;
+    }
     if (scoresRes.ok) {
-      const records = (await scoresRes.json()) as ScoresRecord[];
+      // Live feed fields are PascalCase; normalise before the camelCase helpers.
+      const records = normalizeScores((await scoresRes.json()) as Array<Record<string, unknown>>);
       const lines = finalisedFeedLines(records);
       if (lines.length) out.matchEvents = lines;
       out.score = liveScore(records);

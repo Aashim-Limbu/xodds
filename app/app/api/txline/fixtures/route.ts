@@ -25,6 +25,7 @@ export async function GET(): Promise<Response> {
       home: f.Participant1IsHome ? f.Participant1 : f.Participant2,
       away: f.Participant1IsHome ? f.Participant2 : f.Participant1,
       kickoff: Math.floor(f.StartTime / 1000),
+      competition: f.Competition ?? "",
     }));
     return NextResponse.json(fixtures, { headers: { "Cache-Control": "s-maxage=300" } });
   } catch {

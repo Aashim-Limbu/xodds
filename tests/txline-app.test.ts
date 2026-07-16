@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { finalisedFeedLines, liveScore, pick1x2Probabilities, type OddsPayload, type ScoresRecord } from "../app/lib/txline.js";
+import { finalisedFeedLines, liveScore, normalizeScores, pick1x2Probabilities, pickGoalLines, type OddsPayload, type ScoresRecord } from "../app/lib/txline.js";
 
 describe("pick1x2Probabilities", () => {
   const line = (over: Partial<OddsPayload>): OddsPayload => ({
@@ -63,5 +63,41 @@ describe("liveScore", () => {
   });
   it("is undefined with no records", () => {
     expect(liveScore([])).toBeUndefined();
+  });
+});
+
+describe("normalizeScores", () => {
+  it("accepts the live feed's PascalCase fields", () => {
+    const [r] = normalizeScores([
+      { Action: "game_finalised", Participant1IsHome: false, StatusSoccerId: 5, Seq: 9, Stats: { "1": 2 } },
+    ]);
+    expect(r).toEqual({ action: "game_finalised", participant1IsHome: false, statusSoccerId: 5, seq: 9, stats: { "1": 2 } });
+  });
+
+  it("passes camelCase through unchanged", () => {
+    const [r] = normalizeScores([{ action: "comment", participant1IsHome: true, stats: {} }]);
+    expect(r.action).toBe("comment");
+    expect(r.participant1IsHome).toBe(true);
+  });
+});
+
+describe("pickGoalLines", () => {
+  const ou = (line: number | string, period?: string) => ({
+    SuperOddsType: "OVERUNDER_PARTICIPANT_GOALS",
+    MarketPeriod: period,
+    MarketParameters: typeof line === "string" ? line : { line },
+    InRunning: false,
+    PriceNames: ["over", "under"],
+    Pct: ["50", "50"],
+    Ts: 1,
+  });
+
+  it("keeps half-lines, drops quarter-lines, dedupes and sorts", () => {
+    const lines = pickGoalLines([ou(2.5), ou("line=3.5"), ou(2.25), ou(2.5)]);
+    expect(lines).toEqual([5, 7]); // line×2
+  });
+
+  it("ignores first-half markets and other odds types", () => {
+    expect(pickGoalLines([ou(1.5, "half=1"), { ...ou(2.5), SuperOddsType: "1X2_PARTICIPANT_RESULT" }])).toEqual([]);
   });
 });

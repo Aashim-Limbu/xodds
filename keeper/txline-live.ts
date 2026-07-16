@@ -49,6 +49,17 @@ const K = {
 const FINALISED_ACTION = "game_finalised";
 const ABANDONED_STATUS_IDS = new Set([15, 16]); // SoccerFixtureStatus: Abandoned, Cancelled
 
+/** Live devnet responses are PascalCase (`Action`, `Stats`, …); accept either casing. */
+function normalize(records: Array<Record<string, unknown>>): TxScores[] {
+  return records.map((r) => ({
+    fixtureId: (r.fixtureId ?? r.FixtureId ?? 0) as number,
+    action: (r.action ?? r.Action ?? "") as string,
+    participant1IsHome: (r.participant1IsHome ?? r.Participant1IsHome ?? true) as boolean,
+    statusSoccerId: (r.statusSoccerId ?? r.StatusSoccerId) as number | undefined,
+    stats: (r.stats ?? r.Stats) as Record<string, number> | undefined,
+  }));
+}
+
 /** The finalised (or abandoned) record from a snapshot array, or null if the match is still live. */
 function finalRecord(records: TxScores[]): TxScores | null {
   return records.find((r) => r.action === FINALISED_ACTION || ABANDONED_STATUS_IDS.has(r.statusSoccerId ?? -1)) ?? null;
@@ -60,7 +71,7 @@ function finalRecord(records: TxScores[]): TxScores | null {
  * the snapshot has no finalised/abandoned record yet.
  */
 export function parseFinalisedStats(fixtureId: bigint, records: TxScores[]): FixtureStats | null {
-  const rec = finalRecord(records);
+  const rec = finalRecord(normalize(records as unknown as Array<Record<string, unknown>>));
   if (!rec) return null;
   const s = rec.stats ?? {};
   const g = (k: string) => s[k] ?? 0;

@@ -8,6 +8,8 @@
 export interface OddsPayload {
   SuperOddsType: string;
   MarketPeriod?: string;
+  /** e.g. "line=2.25" (string) or { line: 2.25 } — the feed has shown both shapes. */
+  MarketParameters?: string | { line?: number };
   InRunning: boolean;
   PriceNames: string[];
   Pct: string[]; // implied probability %, 3 decimals or "NA"
@@ -23,6 +25,18 @@ export interface ScoresRecord {
   stats?: Record<string, number>;
 }
 
+/** The live feed returns PascalCase fields (`Action`, `Stats`, …); our types and tests use
+ * camelCase. Normalise at the boundary, accepting either casing. */
+export function normalizeScores(records: Array<Record<string, unknown>>): ScoresRecord[] {
+  return records.map((r) => ({
+    action: (r.action ?? r.Action ?? "") as string,
+    participant1IsHome: (r.participant1IsHome ?? r.Participant1IsHome ?? true) as boolean,
+    statusSoccerId: (r.statusSoccerId ?? r.StatusSoccerId) as number | undefined,
+    seq: (r.seq ?? r.Seq) as number | undefined,
+    stats: (r.stats ?? r.Stats) as Record<string, number> | undefined,
+  }));
+}
+
 /** GET /api/fixtures/snapshot — one upcoming Fixture. Partial shape. */
 export interface TxFixture {
   FixtureId: number;
@@ -30,6 +44,7 @@ export interface TxFixture {
   Participant2: string;
   Participant1IsHome: boolean;
   StartTime: number; // unix ms
+  Competition?: string; // e.g. "World Cup", "Friendlies"
 }
 
 /** The match as it stands right now — the Locked-state scoreline strip. */
@@ -44,11 +59,14 @@ export interface TxlineLive {
   referenceProbabilities?: [number, number, number];
   matchEvents?: string[];
   score?: LiveScore;
+  /** Suggested Total Goals lines from the odds feed, as line×2 (odd = half-integer only). */
+  goalLines?: number[];
 }
 
-// ponytail: which SuperOddsType / period is full-time 1X2, and the PriceNames order, are our
-// read of the odds docs. Pin against one real World Cup line and adjust here — single locus.
-const MATCH_ODDS_TYPE = "1X2";
+// Live devnet feed pins SuperOddsType = "1X2_PARTICIPANT_RESULT" (probe 2026-07-16); older
+// docs said "1X2" — match both.
+const is1x2 = (t: string) => /1X2/i.test(t);
+const isGoalsOU = (t: string) => /OVERUNDER.*GOALS/i.test(t);
 // In-running lines are deliberately INCLUDED: pre-kickoff the feed carries pre-match lines,
 // in-play it carries InRunning ones — latest-Ts-wins means Reference Odds become live win
 // probabilities once the match starts (the Locked-state ticker).
@@ -69,7 +87,7 @@ function pctToProb(pct: string | undefined): number {
  */
 export function pick1x2Probabilities(odds: OddsPayload[]): [number, number, number] | undefined {
   const lines = odds
-    .filter((p) => p.SuperOddsType === MATCH_ODDS_TYPE && isFullTime(p) && p.PriceNames.length === 3)
+    .filter((p) => is1x2(p.SuperOddsType) && isFullTime(p) && p.PriceNames.length === 3)
     .sort((a, b) => b.Ts - a.Ts);
   const line = lines[0];
   if (!line) return undefined;
@@ -85,6 +103,32 @@ export function pick1x2Probabilities(odds: OddsPayload[]): [number, number, numb
   const sum = slot[0] + slot[1] + slot[2];
   if (sum <= 0) return undefined;
   return [slot[0] / sum, slot[1] / sum, slot[2] / sum]; // strip the bookmaker's overround
+}
+
+/** The market's O/U line from MarketParameters (either shape), or undefined. */
+function marketLine(p: OddsPayload): number | undefined {
+  const mp = p.MarketParameters;
+  if (typeof mp === "string") {
+    const m = /line=([\d.]+)/.exec(mp);
+    return m ? Number(m[1]) : undefined;
+  }
+  return mp?.line;
+}
+
+/**
+ * Suggested Total Goals lines from the odds feed, as line×2, half-integers only (the program
+ * forbids pushes, so quarter lines like 2.25 are dropped — decision 2026-07-16). Sorted asc.
+ */
+export function pickGoalLines(odds: OddsPayload[]): number[] {
+  const lines = new Set<number>();
+  for (const p of odds) {
+    if (!isGoalsOU(p.SuperOddsType) || !isFullTime(p)) continue;
+    const line = marketLine(p);
+    if (line === undefined) continue;
+    const x2 = Math.round(line * 2);
+    if (x2 % 2 === 1) lines.add(x2); // odd ×2 = half-integer line
+  }
+  return [...lines].sort((a, b) => a - b);
 }
 
 const K = { p1g: "1", p2g: "2", p1y: "3", p2y: "4", p1r: "5", p2r: "6", p1c: "7", p2c: "8" };
