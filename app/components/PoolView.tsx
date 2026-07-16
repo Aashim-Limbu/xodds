@@ -8,7 +8,8 @@ import type { PoolAccount, PoolState } from "@/lib/anchorClient";
 import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
 import { useTxlineLive } from "@/lib/useTxlineLive";
 import { recordResult } from "@/lib/useLeaderboard";
-import { decimalOdds, feedDisplayName, formatUsdc, parseUsdc } from "@/lib/format";
+import { decimalOdds, formatUsdc, parseUsdc } from "@/lib/format";
+import { useMyName } from "@/lib/useMyName";
 import { friendlyError } from "@/lib/errors";
 import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
 import { Feed } from "./Feed";
@@ -36,8 +37,8 @@ const SYSTEM_POST: Partial<Record<PoolState, string>> = {
 /** Live view of one Pool: pot, per-Outcome totals + Reference Odds, place Entry, the live
  * Feed, and — once Settled — the Proof Receipt. */
 export function PoolView({ address }: { address: string }) {
-  const { client, email, address: wallet } = useFinalWhistle();
-  const displayName = feedDisplayName(email, wallet);
+  const { client, address: wallet } = useFinalWhistle();
+  const { name: displayName } = useMyName();
   const poolKey = new PublicKey(address);
   const [pool, setPool] = useState<PoolAccount | null>(null);
   // Feed is per-Group (CONTEXT.md): every Pool in the Group shares one stream, so system
@@ -243,6 +244,14 @@ export function PoolView({ address }: { address: string }) {
             {labels.map((label, o) => {
               const isWinner = pool.state === "settled" && pool.winningOutcome === o;
               const mine = myEntries[o];
+              // Live parimutuel preview: if I back `stake` here, the pot and this side both
+              // grow by it, and a win pays my share of the new pot.
+              const stake = (() => { try { return parseUsdc(amount); } catch { return 0n; } })();
+              const newPot = pool.pot + stake;
+              const newSide = pool.outcomeTotals[o] + stake;
+              const projected = stake > 0n && newSide > 0n ? (stake * newPot) / newSide : 0n;
+              const mult = stake > 0n ? Number(projected) / Number(stake) : 0;
+              const share = pool.pot > 0n ? Number((pool.outcomeTotals[o] * 100n) / pool.pot) : 0;
               return (
                 <div key={o} className={`outcome${isWinner ? " win" : ""}`}>
                   {isWinner && <span className="badge settled">Winner</span>}
@@ -257,9 +266,20 @@ export function PoolView({ address }: { address: string }) {
                     {mine ? ` · yours $${formatUsdc(mine)}` : ""}
                   </span>
                   {pool.state === "open" && (
-                    <button disabled={busy || !client} onClick={() => back(o)}>
-                      Back ${amount}
-                    </button>
+                    <>
+                      <span className="pot-share" aria-label={`${share}% of the pot backs this outcome`}>
+                        <span className="pot-share-bar" style={{ transform: `scaleX(${share / 100})` }} aria-hidden="true" />
+                        <span className="label">{share}% of pot</span>
+                      </span>
+                      {stake > 0n && (
+                        <span className="win-preview">
+                          win ~${formatUsdc(projected)} <span className="muted">({mult.toFixed(1)}x)</span>
+                        </span>
+                      )}
+                      <button disabled={busy || !client} onClick={() => back(o)}>
+                        Back ${amount}
+                      </button>
+                    </>
                   )}
                   {pool.state === "void" && mine ? (
                     <button disabled={busy || !client} onClick={() => act(() => client!.claimRefund(poolKey, o))}>
@@ -271,14 +291,26 @@ export function PoolView({ address }: { address: string }) {
             })}
           </div>
           {pool.state === "open" && (
-            <div className="panel row" style={{ marginBottom: 0 }}>
-              <label className="row" style={{ gap: 10 }}>
-                <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Entry amount (USDC)</span>
+            <div className="panel row" style={{ marginBottom: 0, flexWrap: "wrap", gap: 10 }}>
+              <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Your stake</span>
+              {["1", "5", "10", "25"].map((v) => (
+                <button
+                  key={v}
+                  className={`gchip${amount === v ? " active" : ""}`}
+                  aria-pressed={amount === v}
+                  onClick={() => setAmount(v)}
+                >
+                  ${v}
+                </button>
+              ))}
+              <label className="row" style={{ gap: 6 }}>
+                <span className="label muted">custom</span>
                 <input
                   value={amount}
                   inputMode="decimal"
+                  aria-label="Custom stake amount (USDC)"
                   onChange={(e) => setAmount(e.target.value)}
-                  style={{ width: 90 }}
+                  style={{ width: 80 }}
                 />
               </label>
             </div>
