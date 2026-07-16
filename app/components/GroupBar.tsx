@@ -1,22 +1,22 @@
 "use client";
 
-import { GLOBAL_GROUP, type Group, inviteUrl } from "@/lib/groups";
+import { GLOBAL_GROUP, type Group } from "@/lib/groups";
 import { Avatars } from "./Avatars";
-import { InviteModal } from "./InviteModal";
 
-/** The Group hero banner: name, blurb, members, and the group-scoped actions
- * (switch Group, invite a link, create a new Group). Stadium + stickers are decorative. */
+/** The Group hero banner: identity (ID chip, name, blurb, presence), the live cash pot,
+ * and ONE action — Add a Friend. Switching and creation live in the GroupRail above. */
 export function GroupBar({
   groups,
   activeId,
-  onSwitch,
-  onCreate,
+  onAddFriend,
+  potTotal,
   online = [],
 }: {
   groups: Group[];
   activeId: string;
-  onSwitch: (id: string) => void;
-  onCreate: (name: string) => void;
+  onAddFriend: () => void;
+  /** Formatted USD sum of the Group's open+locked Pool pots (null while loading). */
+  potTotal: string | null;
   /** Display names currently on the Group's Feed channel (live presence). */
   online?: string[];
 }) {
@@ -27,29 +27,11 @@ export function GroupBar({
     ? "The open market — anyone can spin up a Pool on any Fixture, and anyone can join. Settled by proof, never by a house."
     : "Your private syndicate. Create Pools, invite your mates, and settle every call on-chain.";
 
-  function create() {
-    const name = window.prompt("Name your friend Group");
-    if (name?.trim()) onCreate(name.trim());
-  }
-
   return (
     <div className="hero">
       <div className="hero-content">
         <div className="hero-main">
-          <div className="row" style={{ gap: 10, flexWrap: "wrap" }}>
-            <span className="chip-id">ID: {active.id.slice(0, 8).toUpperCase()}</span>
-            {/* group switcher kept compact next to the ID (Stitch shows just the chip) */}
-            <select
-              value={activeId}
-              onChange={(e) => onSwitch(e.target.value)}
-              aria-label="Switch group"
-              style={{ padding: "3px 8px", fontSize: 12 }}
-            >
-              {groups.map((g) => (
-                <option key={g.id} value={g.id}>{g.name}</option>
-              ))}
-            </select>
-          </div>
+          <span className="chip-id">ID: {active.id.slice(0, 8).toUpperCase()}</span>
           <h1 className="hero-title" style={{ marginTop: 12 }}>{active.name}</h1>
           <p className="hero-sub">{blurb}</p>
           {/* Honest presence: who is on the Group Feed right now — no fabricated membership. */}
@@ -62,11 +44,18 @@ export function GroupBar({
         </div>
 
         <div className="hero-actions">
-          <InviteModal url={inviteUrl(active)} />
-          <button className="hero-btn newpool" onClick={create}>
-            <span className="msym">add_circle</span>
-            New Group
-          </button>
+          {!isGlobal && (
+            <button className="hero-btn invite" onClick={onAddFriend}>
+              <span className="msym">person_add</span>
+              Add a Friend
+            </button>
+          )}
+          {potTotal && (
+            <div className="pot-chip">
+              <span className="label">Cash pot</span>
+              <strong>{potTotal}</strong>
+            </div>
+          )}
         </div>
       </div>
     </div>

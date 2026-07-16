@@ -36,23 +36,44 @@ create policy "results are public" on pool_results for select using (true);
 drop policy if exists "anyone can record" on pool_results;
 create policy "anyone can record" on pool_results for insert with check (true);
 
--- Shared Group membership: a Group follows its members across devices, and the
--- Syndicate tab shows a real roster instead of only live presence.
-create table if not exists group_members (
+-- ---- Identity + Groups (v2: server-verified writes) ----
+-- Reads are public; there are NO anon write policies on these tables. Every mutation goes
+-- through the Next API routes, which verify the caller's Privy token and write with the
+-- service-role key (bypasses RLS). See app/app/api/*.
+
+create table if not exists users (
+  wallet text primary key,
+  display_name text not null,
+  email text,
+  created_at bigint not null
+);
+alter table users enable row level security;
+drop policy if exists "users are public" on users;
+create policy "users are public" on users for select using (true);
+
+create table if not exists groups (
+  id text primary key,          -- base58 group pubkey (the Pool PDA `group` seed)
+  name text not null,
+  created_by text not null,
+  created_at bigint not null
+);
+alter table groups enable row level security;
+drop policy if exists "groups are public" on groups;
+create policy "groups are public" on groups for select using (true);
+
+-- v2 replaces the v1 anon-writable shape (name/group_name columns) wholesale.
+drop table if exists group_members;
+create table group_members (
   group_id text not null,
   wallet text not null,
-  name text not null,
-  group_name text not null,
+  status text not null default 'member' check (status in ('member', 'invited')),
+  invited_by text,
   ts bigint not null,
   primary key (group_id, wallet)
 );
 alter table group_members enable row level security;
 drop policy if exists "members are public" on group_members;
 create policy "members are public" on group_members for select using (true);
-drop policy if exists "anyone can join" on group_members;
-create policy "anyone can join" on group_members for insert with check (true);
-drop policy if exists "members can update" on group_members;
-create policy "members can update" on group_members for update using (true);
 
 -- Live leaderboard updates need the table in the realtime publication; adding twice errors,
 -- so guard it.

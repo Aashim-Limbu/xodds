@@ -5,7 +5,16 @@ import { type FeedEvent } from "@/lib/feed";
 
 /** The nav bell: unread count + dropdown of the Group's latest Feed events.
  * Seen-state is per-Group so reading one Group's events doesn't mark another's read. */
-export function NotificationsBell({ events, groupId }: { events: FeedEvent[]; groupId: string }) {
+export function NotificationsBell({
+  events,
+  groupId,
+  inviteCount = 0,
+}: {
+  events: FeedEvent[];
+  groupId: string;
+  /** Pending Group invites — always counted (they need action, not just reading). */
+  inviteCount?: number;
+}) {
   const SEEN_KEY = `xodds-notif-seen:${groupId}`;
   const [open, setOpen] = useState(false);
   const [seenTs, setSeenTs] = useState(0);
@@ -26,7 +35,7 @@ export function NotificationsBell({ events, groupId }: { events: FeedEvent[]; gr
     return () => window.removeEventListener("pointerdown", onDown);
   }, [open]);
 
-  const unread = events.filter((e) => e.ts > seenTs).length;
+  const unread = events.filter((e) => e.ts > seenTs).length + inviteCount;
   const latest = events.slice(-8).reverse();
 
   function toggle() {
@@ -52,7 +61,14 @@ export function NotificationsBell({ events, groupId }: { events: FeedEvent[]; gr
       {open && (
         <div className="notif-panel" role="dialog" aria-label="Notifications">
           <h2>Latest</h2>
-          {latest.length === 0 && <span className="muted">Nothing yet — activity in your Group shows up here.</span>}
+          {inviteCount > 0 && (
+            <div className="notif-item">
+              <strong>{inviteCount} Group invite{inviteCount > 1 ? "s" : ""}</strong> waiting — see the Invites panel.
+            </div>
+          )}
+          {latest.length === 0 && inviteCount === 0 && (
+            <span className="muted">Nothing yet — activity in your Group shows up here.</span>
+          )}
           {latest.map((e) => (
             <div key={e.id} className="notif-item">
               {e.kind === "system" ? e.text : <><strong>{e.author}</strong> {e.text}</>}
