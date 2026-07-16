@@ -8,6 +8,23 @@ import { supabase } from "./supabase";
 
 export type { FeedEvent, FeedEventKind } from "./feedEvents";
 
+/** Latest event timestamp per channel — powers the Group Rail's unread dots. One query
+ * over recent history, reduced client-side (PostgREST has no group-by). */
+export async function fetchLatestActivity(channelKeys: string[]): Promise<Map<string, number>> {
+  const latest = new Map<string, number>();
+  if (!supabase || channelKeys.length === 0) return latest;
+  const { data } = await supabase
+    .from("feed_events")
+    .select("channel, ts")
+    .in("channel", channelKeys)
+    .order("ts", { ascending: false })
+    .limit(200);
+  for (const row of data ?? []) {
+    if (!latest.has(row.channel)) latest.set(row.channel, row.ts);
+  }
+  return latest;
+}
+
 // Realtime channels for the live layer, plus a public `feed_events` table for history (see
 // DEMO.md for the one-time SQL). If the table doesn't exist, the Feed degrades to ephemeral
 // broadcast-only — exactly the old behavior — rather than breaking.
