@@ -32,11 +32,8 @@ export function CreatePool({ group, onCreated }: { group: PublicKey; onCreated: 
     setError(null);
     try {
       const fixture = fixtures.find((f) => f.fixtureId.toString() === fixtureId)!;
-      // Next free nonce for this Group + Fixture + Pool Type (the PDA is keyed by all three).
-      const existing = await client.listPools(group);
-      const nonce = BigInt(
-        existing.filter((p) => p.fixtureId === fixture.fixtureId && p.poolType === poolType).length,
-      );
+      // First free nonce for this Group + Fixture + Pool Type (the PDA is keyed by all three).
+      const nonce = await client.freeNonce(group, fixture.fixtureId, poolType);
       const kickoff = Math.floor(Date.now() / 1000) + KICKOFF_OFFSET_SECONDS;
       await client.createPool(group, fixture.fixtureId, nonce, kickoff, poolType, hasLine ? lineX2 : 0);
       onCreated();

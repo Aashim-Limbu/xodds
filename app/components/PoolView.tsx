@@ -174,10 +174,7 @@ export function PoolView({ address }: { address: string }) {
     setBusy(true);
     setError(null);
     try {
-      const existing = await client.listPools(pool.group);
-      const nonce = BigInt(
-        existing.filter((p) => p.fixtureId === pool.fixtureId && p.poolType === pool.poolType).length,
-      );
+      const nonce = await client.freeNonce(pool.group, pool.fixtureId, pool.poolType);
       const kickoff = Math.floor(Date.now() / 1000) + KICKOFF_OFFSET_SECONDS;
       const newPool = await client.createPool(pool.group, pool.fixtureId, nonce, kickoff, pool.poolType, pool.lineX2);
       feed.postSystem(
