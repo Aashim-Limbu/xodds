@@ -61,9 +61,10 @@ alter table groups enable row level security;
 drop policy if exists "groups are public" on groups;
 create policy "groups are public" on groups for select using (true);
 
--- v2 replaces the v1 anon-writable shape (name/group_name columns) wholesale.
-drop table if exists group_members;
-create table group_members (
+-- v2 shape (status/invited_by). If migrating a v1 database (name/group_name columns),
+-- drop the old table once by hand: `drop table group_members;` — this script must stay
+-- safe to re-run and will NOT drop data.
+create table if not exists group_members (
   group_id text not null,
   wallet text not null,
   status text not null default 'member' check (status in ('member', 'invited')),
@@ -76,8 +77,12 @@ drop policy if exists "members are public" on group_members;
 create policy "members are public" on group_members for select using (true);
 
 -- Live leaderboard updates need the table in the realtime publication; adding twice errors,
--- so guard it.
+-- so guard it. group_members is published too so invites appear in the rail in realtime.
 do $$ begin
   alter publication supabase_realtime add table pool_results;
+exception when duplicate_object then null;
+end $$;
+do $$ begin
+  alter publication supabase_realtime add table group_members;
 exception when duplicate_object then null;
 end $$;

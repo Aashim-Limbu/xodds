@@ -6,17 +6,21 @@ import { Profile } from "@/components/Profile";
 import { SignIn } from "@/components/SignIn";
 import { Feed } from "@/components/Feed";
 import { Leaderboard } from "@/components/Leaderboard";
-import { CreatePool } from "@/components/CreatePool";
+import { GameBrowser } from "@/components/GameBrowser";
 import { GetTestFunds } from "@/components/GetTestFunds";
 import { GroupBar } from "@/components/GroupBar";
 import { PoolList } from "@/components/PoolList";
 import { XMark } from "@/components/stickers";
 import { GroupRail } from "@/components/GroupRail";
+import { BottomNav, NavBar, type Tab } from "@/components/NavBar";
+import { supabase } from "@/lib/supabase";
 import { fetchLatestActivity, useFeed } from "@/lib/feed";
-import { feedDisplayName, formatUsdc } from "@/lib/format";
+import { formatUsdc } from "@/lib/format";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
+import { useMyName } from "@/lib/useMyName";
 import { AddFriendModal } from "@/components/AddFriendModal";
 import { NewGroupModal } from "@/components/NewGroupModal";
+import { NicknameOnboarding } from "@/components/NicknameOnboarding";
 import {
   cacheGroup,
   createGroupApi,
@@ -35,17 +39,7 @@ import {
   listGroups,
   respondToInvite,
   setActiveGroupId,
-  upsertMe,
 } from "@/lib/groups";
-
-type Tab = "pools" | "syndicate" | "activity" | "profile";
-
-const TABS: Array<{ id: Tab; label: string; icon: string }> = [
-  { id: "pools", label: "Pools", icon: "sports_soccer" },
-  { id: "syndicate", label: "Syndicate", icon: "groups" },
-  { id: "activity", label: "Activity", icon: "receipt_long" },
-  { id: "profile", label: "Profile", icon: "person" },
-];
 
 export default function Home() {
   const { authenticated, client, login, logout, email, address: wallet, getAccessToken } = useFinalWhistle();
@@ -58,7 +52,7 @@ export default function Home() {
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [membersKey, setMembersKey] = useState(0); // bump to re-fetch the roster
   // The per-Group Feed (CONTEXT.md), mounted on the Group home; Pool pages join the same channel.
-  const displayName = feedDisplayName(email, wallet);
+  const { name: displayName, saveName, needsOnboarding } = useMyName();
   const groupChannel = useMemo(() => `group:${groupPubkey(activeId).toBase58()}`, [activeId]);
   const feed = useFeed(authenticated ? groupChannel : "", displayName);
 
@@ -67,6 +61,8 @@ export default function Home() {
   const [pendingJoin, setPendingJoin] = useState<Group | null>(null);
   useEffect(() => {
     const params = new URLSearchParams(window.location.search);
+    const wantedTab = params.get("tab");
+    if (wantedTab) setTab(wantedTab as Tab);
     const joinId = params.get("join");
     if (joinId) {
       const g = { id: joinId, name: params.get("name") ?? "Group" };
@@ -93,21 +89,41 @@ export default function Home() {
     setInvites(await fetchInvites(w));
   }
 
-  // Server-truth sync at sign-in: register the profile (makes you searchable), complete a
-  // pending invite-link join, then pull memberships + invites from any device.
+  // Server-truth sync at sign-in: complete a pending invite-link join, then pull memberships
+  // + invites from any device. (Profile registration/name is owned by useMyName.)
   useEffect(() => {
     if (!wallet) return;
     void (async () => {
       const t = await token().catch(() => null);
       if (t) {
-        await upsertMe(t, displayName, email).catch(() => {});
         if (pendingJoin) {
           await joinGroupApi(t, pendingJoin).catch(() => {});
           setPendingJoin(null);
         }
+        // Backfill: register legacy localStorage-era Groups server-side so membership-gated
+        // actions (inviting, roster) work in them too. Idempotent upserts.
+        const remote = new Set((await fetchMyGroups(wallet)).map((g) => g.id));
+        for (const g of listGroups()) {
+          if (g.id !== GLOBAL_GROUP.id && !remote.has(g.id)) await joinGroupApi(t, g).catch(() => {});
+        }
       }
       await refreshGroups(wallet);
     })();
+    // Realtime: any change to my membership rows (an invite, an accept elsewhere, a removal)
+    // re-syncs the rail within a second. The 30s poll stays as a fallback for dropped sockets.
+    const channel = supabase
+      ?.channel(`members:${wallet}`)
+      .on(
+        "postgres_changes",
+        { event: "*", schema: "public", table: "group_members", filter: `wallet=eq.${wallet}` },
+        () => void refreshGroups(wallet),
+      )
+      .subscribe();
+    const id = setInterval(() => void refreshGroups(wallet), 30_000);
+    return () => {
+      clearInterval(id);
+      if (channel) void supabase?.removeChannel(channel);
+    };
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [wallet, displayName, email, pendingJoin]);
 
@@ -260,50 +276,39 @@ export default function Home() {
 
   return (
     <>
-      <nav className="dash-nav">
-        <div className="dash-nav-inner">
-          <div className="brand"><span>x</span>Odds</div>
-          <div className="nav-links">
-            {TABS.map((t) => (
-              <button
-                key={t.id}
-                className="nav-link"
-                aria-current={tab === t.id ? "page" : undefined}
-                onClick={() => setTab(t.id)}
-              >
-                {t.label}
-              </button>
-            ))}
-          </div>
-          <div className="nav-right">
-            <NotificationsBell events={feed.events} groupId={activeId} inviteCount={invites.length} />
-            <button className="nav-icon-btn" aria-label="Sign out" title="Sign out" onClick={logout}>
-              <span className="msym">account_circle</span>
-            </button>
-          </div>
-        </div>
-      </nav>
+      <NavBar
+        active={tab}
+        onTab={setTab}
+        extra={<NotificationsBell events={feed.events} groupId={activeId} inviteCount={invites.length} />}
+      />
       <div className="container">
-        <GroupRail
-          groups={groups}
-          activeId={activeId}
-          invites={invites}
-          unread={unread}
-          onSwitch={switchGroup}
-          onNew={() => setShowNewGroup(true)}
-          onRespond={(inv, accept) => void respond(inv, accept)}
-        />
-        <GroupBar
-          groups={groups}
-          activeId={activeId}
-          onAddFriend={() => setShowAddFriend(true)}
-          potTotal={potTotal}
-          online={feed.present}
-        />
+        {/* Group chrome is only for group-scoped tabs. Profile is about YOU, not the Group. */}
+        {tab !== "profile" && (
+          <GroupRail
+            groups={groups}
+            activeId={activeId}
+            invites={invites}
+            unread={unread}
+            onSwitch={switchGroup}
+            onNew={() => setShowNewGroup(true)}
+            onRespond={(inv, accept) => void respond(inv, accept)}
+          />
+        )}
+        {/* The tall hero banner earns its space only where you act on the Group (Pools/Syndicate);
+            Activity already names the Group in its Feed, and Profile isn't group-scoped at all. */}
+        {(tab === "pools" || tab === "syndicate") && (
+          <GroupBar
+            groups={groups}
+            activeId={activeId}
+            onAddFriend={() => setShowAddFriend(true)}
+            potTotal={potTotal}
+            online={feed.present}
+          />
+        )}
         {tab === "pools" && (
           <>
             <GetTestFunds />
-            <CreatePool group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
+            <GameBrowser group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
             <PoolList group={groupPubkey(activeId)} refreshKey={refreshKey} />
           </>
         )}
@@ -345,20 +350,20 @@ export default function Home() {
           </>
         )}
         {tab === "activity" && <Feed feed={feed} />}
-        {tab === "profile" && <Profile email={email} wallet={wallet} displayName={displayName} onSignOut={logout} />}
+        {tab === "profile" && (
+          <Profile
+            email={email}
+            wallet={wallet}
+            displayName={displayName}
+            onSaveName={saveName}
+            onPlay={() => setTab("pools")}
+            onSignOut={logout}
+          />
+        )}
       </div>
-      <nav className="bottom-nav">
-        {TABS.map((t) => (
-          <button
-            key={t.id}
-            className={`bn-item${tab === t.id ? " active" : ""}`}
-            onClick={() => setTab(t.id)}
-          >
-            <span className="msym">{t.icon}</span>
-            {t.label}
-          </button>
-        ))}
-      </nav>
+      <BottomNav active={tab} onTab={setTab} />
+      {/* First-run gate: a new User picks a nickname before using the app (covers everything). */}
+      {needsOnboarding && <NicknameOnboarding onSave={saveName} />}
       <NewGroupModal open={showNewGroup} onClose={() => setShowNewGroup(false)} onCreate={create} />
       <AddFriendModal
         open={showAddFriend}
