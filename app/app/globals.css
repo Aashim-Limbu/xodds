@@ -253,6 +253,106 @@ button.bn-item.active:hover { background: var(--yellow); box-shadow: 2px 2px 0 0
 .notif-item:last-child { border-bottom: 0; padding-bottom: 0; }
 
 .label { font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
+.form-error { color: var(--danger); font-weight: 700; font-size: 13px; }
+
+/* ---- Group Rail (Stitch "Your Groups" chip rail) ---- */
+.group-rail-wrap { margin-bottom: 18px; }
+.group-rail-wrap > .label { display: block; margin-bottom: 8px; }
+.group-rail {
+  display: flex;
+  gap: 12px;
+  align-items: center;
+  overflow-x: auto;
+  padding: 4px 4px 10px; /* room for shadows + rotation */
+  scrollbar-width: thin;
+}
+button.gchip {
+  flex: 0 0 auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  position: relative;
+  background: var(--paper);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 2px 2px 0 0 var(--ink);
+  padding: 8px 16px;
+  font-family: var(--body);
+  font-weight: 800;
+  font-size: 13px;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+  white-space: nowrap;
+}
+button.gchip:hover { transform: translate(1px, 1px); box-shadow: 1px 1px 0 0 var(--ink); }
+button.gchip.active {
+  background: var(--yellow);
+  transform: rotate(-1.5deg);
+  box-shadow: 3px 3px 0 0 var(--ink);
+}
+button.gchip.active:hover { transform: rotate(-1.5deg); box-shadow: 3px 3px 0 0 var(--ink); }
+.gchip-dot {
+  position: absolute;
+  top: -4px;
+  right: 6px;
+  width: 10px;
+  height: 10px;
+  border-radius: 999px;
+  background: var(--ink);
+  border: 2px solid var(--bg);
+}
+button.gchip.ghost {
+  border-style: dashed;
+  background: var(--bg);
+  opacity: 0.92;
+}
+.gchip-tag {
+  font-family: var(--mono);
+  font-size: 9px;
+  font-weight: 700;
+  background: var(--yellow);
+  border: 1px solid var(--ink);
+  border-radius: 999px;
+  padding: 1px 6px;
+}
+button.gchip.add {
+  padding: 8px 10px;
+  background: var(--ink);
+  color: #fff;
+  border-radius: 999px;
+}
+button.gchip.add .msym { font-size: 18px; }
+.gchip-ghost-wrap { position: relative; flex: 0 0 auto; }
+.gchip-pop {
+  position: absolute;
+  top: calc(100% + 8px);
+  left: 0;
+  z-index: 60;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  min-width: 200px;
+}
+
+/* Hero cash-pot chip (Stitch spec) */
+.pot-chip {
+  display: inline-flex;
+  flex-direction: column;
+  align-items: flex-end;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+  padding: 8px 14px;
+}
+.pot-chip .label { opacity: 0.65; }
+.pot-chip strong { font-family: var(--display); font-style: italic; font-size: 22px; letter-spacing: -0.01em; }
 .nav-icon-btn {
   background: transparent;
   border: 0;
