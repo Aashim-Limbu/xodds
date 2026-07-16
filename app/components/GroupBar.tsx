@@ -53,7 +53,7 @@ export function GroupBar({
           {potTotal && (
             <div className="pot-chip">
               <span className="label">Cash pot</span>
-              <strong>{potTotal}</strong>
+              <strong>${potTotal}</strong>
             </div>
           )}
         </div>

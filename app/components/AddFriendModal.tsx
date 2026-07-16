@@ -25,13 +25,23 @@ export function AddFriendModal({
   const [copied, setCopied] = useState(false);
   const [q, setQ] = useState("");
   const [hits, setHits] = useState<UserHit[]>([]);
+  const [searching, setSearching] = useState(false);
   const [sent, setSent] = useState<Set<string>>(new Set());
   const [error, setError] = useState("");
 
   // Debounced live search against the public users registry.
   useEffect(() => {
     if (!open) return;
-    const t = setTimeout(() => void searchUsers(q).then(setHits), 250);
+    if (q.trim().length < 2) {
+      setHits([]);
+      setSearching(false);
+      return;
+    }
+    setSearching(true);
+    const t = setTimeout(
+      () => void searchUsers(q).then(setHits).finally(() => setSearching(false)),
+      250,
+    );
     return () => clearTimeout(t);
   }, [q, open]);
 
@@ -102,28 +112,37 @@ export function AddFriendModal({
             onChange={(e) => setQ(e.target.value)}
           />
           {q.trim().length >= 2 && (
-            <div className="stack" style={{ gap: 6, marginTop: 8 }}>
-              {hits.length === 0 && (
+            <div className="stack" style={{ gap: 8, marginTop: 8 }} aria-live="polite">
+              {searching ? (
+                <div className="friend-row muted">
+                  <span className="friend-avatar pulse" aria-hidden="true" />
+                  Searching…
+                </div>
+              ) : hits.filter((h) => h.wallet !== selfWallet).length === 0 ? (
                 <span className="muted">No one found — they need to sign in once to be searchable. Send the link instead.</span>
+              ) : (
+                hits.filter((h) => h.wallet !== selfWallet).map((h) => {
+                  const status = sent.has(h.wallet) ? "invited" : inGroup.get(h.wallet);
+                  // display_name defaults to the email — don't print the same string twice
+                  const subtitle = h.email && h.email !== h.name ? h.email : `${h.wallet.slice(0, 4)}…${h.wallet.slice(-4)}`;
+                  return (
+                    <div key={h.wallet} className="friend-row">
+                      <span className="friend-avatar" aria-hidden="true">{h.name.slice(0, 1).toUpperCase()}</span>
+                      <span className="friend-id">
+                        <strong>{h.name}</strong>
+                        <span className="muted">{subtitle}</span>
+                      </span>
+                      {status === "member" ? (
+                        <span className="badge">IN GROUP</span>
+                      ) : status === "invited" ? (
+                        <span className="badge badge-wc">INVITED ✓</span>
+                      ) : (
+                        <button onClick={() => invite(h.wallet)}>Invite</button>
+                      )}
+                    </div>
+                  );
+                })
               )}
-              {hits.filter((h) => h.wallet !== selfWallet).map((h) => {
-                const status = sent.has(h.wallet) ? "invited" : inGroup.get(h.wallet);
-                return (
-                  <div key={h.wallet} className="row between">
-                    <span>
-                      <strong>{h.name}</strong>
-                      {h.email && <span className="muted" style={{ marginLeft: 8 }}>{h.email}</span>}
-                    </span>
-                    {status === "member" ? (
-                      <span className="badge">IN GROUP</span>
-                    ) : status === "invited" ? (
-                      <span className="badge">INVITED</span>
-                    ) : (
-                      <button className="secondary" onClick={() => invite(h.wallet)}>Invite</button>
-                    )}
-                  </div>
-                );
-              })}
             </div>
           )}
         </div>

@@ -38,9 +38,9 @@ export function GroupRail({
   }, [openInvite]);
 
   return (
-    <div className="group-rail-wrap">
+    <div className="group-rail-wrap" ref={railRef}>
       <span className="label muted">Your Groups</span>
-      <div className="group-rail" ref={railRef} role="tablist" aria-label="Your groups">
+      <div className="group-rail" role="tablist" aria-label="Your groups">
         {groups.map((g) => {
           const active = g.id === activeId;
           return (
@@ -60,33 +60,36 @@ export function GroupRail({
           );
         })}
         {invites.map((inv) => (
-          <span key={inv.group.id} className="gchip-ghost-wrap">
-            <button
-              className="gchip ghost"
-              aria-haspopup="true"
-              aria-expanded={openInvite === inv.group.id}
-              onClick={() => setOpenInvite(openInvite === inv.group.id ? null : inv.group.id)}
-            >
-              {inv.group.name}
-              <span className="gchip-tag">INVITE</span>
-            </button>
-            {openInvite === inv.group.id && (
-              <div className="gchip-pop" role="dialog" aria-label={`Invite to ${inv.group.name}`}>
-                <span className="muted" style={{ fontSize: 12 }}>invited by {inv.invitedBy}</span>
-                <div className="row" style={{ gap: 6 }}>
-                  <button onClick={() => { setOpenInvite(null); onRespond(inv, true); }}>Accept</button>
-                  <button className="secondary" onClick={() => { setOpenInvite(null); onRespond(inv, false); }}>
-                    Decline
-                  </button>
-                </div>
-              </div>
-            )}
-          </span>
+          <button
+            key={inv.group.id}
+            className="gchip ghost"
+            aria-expanded={openInvite === inv.group.id}
+            onClick={() => setOpenInvite(openInvite === inv.group.id ? null : inv.group.id)}
+          >
+            {inv.group.name}
+            <span className="gchip-tag">INVITE</span>
+          </button>
         ))}
         <button className="gchip add" aria-label="New group" title="New group" onClick={onNew}>
           <span className="msym">add</span>
         </button>
       </div>
+      {/* Invite prompt lives BELOW the rail in normal flow — the rail is an overflow
+          container, so anything floated inside it gets clipped. */}
+      {invites.filter((inv) => inv.group.id === openInvite).map((inv) => (
+        <div key={inv.group.id} className="gchip-pop" role="region" aria-label={`Invite to ${inv.group.name}`}>
+          <span>
+            Join <strong>{inv.group.name}</strong>?{" "}
+            <span className="muted" style={{ fontSize: 12 }}>invited by {inv.invitedBy}</span>
+          </span>
+          <div className="row" style={{ gap: 6 }}>
+            <button onClick={() => { setOpenInvite(null); onRespond(inv, true); }}>Accept</button>
+            <button className="secondary" onClick={() => { setOpenInvite(null); onRespond(inv, false); }}>
+              Decline
+            </button>
+          </div>
+        </div>
+      ))}
     </div>
   );
 }

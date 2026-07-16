@@ -26,7 +26,15 @@ export function shortAddress(s: string): string {
   return `${s.slice(0, 4)}…${s.slice(-4)}`;
 }
 
-/** The name a User posts/appears as in the Feed: email, else short wallet, else "anon". */
+/** The local-part of an email ("jane.doe@x.com" -> "jane.doe"), or null. */
+export function emailLocalPart(email: string | null | undefined): string | null {
+  const local = email?.split("@")[0]?.trim();
+  return local || null;
+}
+
+/** The default name a User posts/appears as: email local-part (never the full email —
+ * that would leak into the public Feed), else short wallet, else "anon". A saved custom
+ * name (see useMyName) takes precedence over this. */
 export function feedDisplayName(email: string | null | undefined, wallet: string | null | undefined): string {
-  return email ?? (wallet ? shortAddress(wallet) : "anon");
+  return emailLocalPart(email) ?? (wallet ? shortAddress(wallet) : "anon");
 }
