@@ -8,16 +8,26 @@ import { scoresRootPda } from "@/lib/pdas";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { fixtureById, poolOutcomeLabels } from "@/lib/fixtures";
 import { useFixtures } from "@/lib/useTxlineLive";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card } from "@/components/ui/card";
+import { Skeleton } from "@/components/ui/skeleton";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { Alert } from "@/components/ui/alert";
 
 function short(hex: string): string {
   return hex.length <= 20 ? hex : `${hex.slice(0, 10)}…${hex.slice(-10)}`;
 }
 
 /**
- * The Proof Receipt — the hero artifact. Renders the winning Outcome, TxLINE's proven
- * stats, the score root it verified against, the Merkle path, and the settlement tx.
- * All of it is derived from the on-chain settlement, so any Member — winner or loser —
- * can check that the result was proven, not chosen.
+ * The Proof Receipt — the hero artifact. A fan reads down to "Verified in your browser"
+ * and stops; the score root, Merkle path, and settlement tx live behind "Check it
+ * yourself" so the chain never lands on someone who didn't ask for it (PRODUCT.md:
+ * crypto is invisible). A FAILED proof is never hidden — it renders open.
+ *
+ * The class hooks `proven-panel`, `sticker`, `receipt-body`, and `verify` carry the
+ * settlement reveal in globals.css (the legacy layer). Renaming them silently kills the
+ * app's signature moment — no error, no test failure. Leave them alone.
  */
 export function ProofReceipt({
   address,
@@ -34,7 +44,7 @@ export function ProofReceipt({
   // Settlement is public: fall back to a wallet-less client so the receipt renders on the
   // public share page (and to any signed-out viewer) exactly as it does in-app.
   const client = useMemo(() => authed ?? readOnlyClient(), [authed]);
-  useFixtures(); // hydrate real TxLINE fixtures on direct /receipt/<id> loads (Codex P2)
+  useFixtures(); // hydrate real TxLINE fixtures on direct /receipt/<id> loads
   const [receipt, setReceipt] = useState<SettlementReceipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);
@@ -59,8 +69,22 @@ export function ProofReceipt({
     [receipt, fixtureId],
   );
 
-  if (loading) return <div className="panel muted">Building Proof Receipt…</div>;
-  if (!receipt) return <div className="panel muted">No settlement proof found for this Pool.</div>;
+  // The skeleton renders in a SIBLING branch, not the same subtree position as the
+  // resolved receipt. @starting-style only fires on freshly inserted nodes — reusing the
+  // position would stop the reveal from triggering.
+  if (loading) {
+    return (
+      <Card className="gap-3">
+        <Skeleton className="h-6 w-40" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-16 w-full" />
+        <span className="sr-only">Building Proof Receipt…</span>
+      </Card>
+    );
+  }
+  if (!receipt) {
+    return <Card className="text-muted-foreground">No settlement proof found for this Pool.</Card>;
+  }
 
   const fixture = fixtureById(fixtureId);
   const labels = poolOutcomeLabels(poolType, lineX2, fixture);
@@ -85,110 +109,138 @@ export function ProofReceipt({
   }
 
   return (
-    <div className="receipt-split">
-      <div className="proven-panel">
-        <span className="sticker" aria-hidden="true">🏆</span>
-        <span className="proven-word">Proven</span>
+    <Card className="receipt-split gap-0 overflow-hidden p-0">
+      <div className="proven-panel flex items-center gap-3 border-b-[3px] border-border bg-primary px-5 py-3">
+        <span className="sticker text-2xl" aria-hidden="true">🏆</span>
+        <span className="proven-word font-display text-lg font-extrabold uppercase tracking-[0.06em]">
+          Proven
+        </span>
       </div>
 
-      <div className="receipt-body">
-        <h2 style={{ margin: 0 }}>Proof Receipt</h2>
-        {fixture && (
-          <div className="score-line">
-            <span className="receipt-label">Final score</span>
-            <span>{fixture.home}</span>
-            <span className="score-chip">{p.homeGoals}&ndash;{p.awayGoals}</span>
-            <span>{fixture.away}</span>
+      <div className="receipt-body flex flex-col gap-4 p-5">
+        <div className="flex flex-wrap items-start justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <h2 className="m-0 font-display text-xl font-extrabold uppercase">Proof Receipt</h2>
+            {fixture && (
+              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+                <span>{fixture.home}</span>
+                <Badge variant="outline" className="text-[13px]">
+                  {p.homeGoals}&ndash;{p.awayGoals}
+                </Badge>
+                <span>{fixture.away}</span>
+              </div>
+            )}
           </div>
-        )}
-        <div className="row" style={{ justifyContent: "space-between", gap: 10, flexWrap: "wrap" }}>
-          <div className="receipt-strong" style={{ textTransform: "uppercase" }}>
-            {labels[receipt.winningOutcome]} wins
-          </div>
-          <button className="share-btn" onClick={share}>
-            <span className="msym">ios_share</span>
+          <Button variant="secondary" size="sm" onClick={share}>
             {shared ? "Link copied ✓" : "Share receipt"}
-          </button>
+          </Button>
         </div>
-        <p className="muted" style={{ margin: 0, fontSize: 13 }}>
+
+        <div className="font-display text-2xl font-extrabold uppercase">
+          {labels[receipt.winningOutcome]} wins
+        </div>
+
+        <p className="m-0 text-[13px] text-muted-foreground">
           Nobody, including us, chose this outcome. It was proven on-chain from TxLINE&rsquo;s Score
           Proof — and re-checked right here in your browser.
         </p>
 
         {check && (
-          <div className={`verify ${check.ok ? "verify-ok" : "verify-fail"}`} role="status">
-            <span className="verify-mark" aria-hidden="true">{check.ok ? "✓" : "✕"}</span>
+          <Alert
+            variant={check.ok ? "success" : "destructive"}
+            className={`verify ${check.ok ? "verify-ok" : "verify-fail"} flex items-start gap-3`}
+            role="status"
+          >
+            <span className="verify-mark text-xl leading-none" aria-hidden="true">
+              {check.ok ? "✓" : "✕"}
+            </span>
             <div>
-              <div className="verify-title">
+              <div className="verify-title text-sm font-extrabold uppercase">
                 {check.ok ? "Verified in your browser" : "Verification failed"}
               </div>
-              <div className="verify-sub">
+              <div className="verify-sub mt-0.5 text-xs text-muted-foreground">
                 {check.ok
                   ? "The values below were hashed on your device and reproduce TxLINE’s published root exactly — no trust in us required."
                   : "These values do not reproduce the published root. Do not trust this receipt."}
               </div>
             </div>
-          </div>
+          </Alert>
         )}
 
-        <div className="receipt-grid">
-          <div>
-            <div className="receipt-label">Proven score</div>
-            <div className="receipt-strong">{p.homeGoals}&ndash;{p.awayGoals}</div>
-          </div>
-          <div>
-            <div className="receipt-label">Winning Outcome</div>
-            <div className="receipt-strong">{labels[receipt.winningOutcome]}</div>
-          </div>
-          <div>
-            <div className="receipt-label">Corners (H/A)</div>
-            <div>{p.homeCorners} / {p.awayCorners}</div>
-          </div>
-          <div>
-            <div className="receipt-label">Cards (H/A)</div>
-            <div>{p.homeCards} / {p.awayCards}</div>
-          </div>
+        <div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+          <Stat label="Proven score" value={`${p.homeGoals}–${p.awayGoals}`} strong />
+          <Stat label="Winning Outcome" value={labels[receipt.winningOutcome]} strong />
+          <Stat label="Corners (H/A)" value={`${p.homeCorners} / ${p.awayCorners}`} />
+          <Stat label="Cards (H/A)" value={`${p.homeCards} / ${p.awayCards}`} />
         </div>
 
-        <div className="stack" style={{ gap: 10 }}>
-          <div className="receipt-label" style={{ marginBottom: -6 }}>⛓ On-chain verification</div>
-          <div>
-            <div className="receipt-label">TxLINE score root (verified against)</div>
-            <code className="mono receipt-bar">{toHex(receipt.scoreRoot)}</code>
-            <a
-              className="mono receipt-bar"
-              style={{ display: "block", marginTop: 6 }}
-              href={`https://explorer.solana.com/address/${scoresRootPda(fixtureId).toBase58()}?cluster=devnet`}
-              target="_blank"
-              rel="noreferrer"
-            >
-              Published in a TxLINE-owned account ↗
-            </a>
-            {check && !check.ok && (
-              <>
-                <div className="receipt-label" style={{ marginTop: 6 }}>Root recomputed here (does not match)</div>
-                <code className="mono receipt-bar" style={{ color: "var(--danger)" }}>{toHex(check.computedRoot)}</code>
-              </>
-            )}
-          </div>
-          <div>
-            <div className="receipt-label">Merkle path ({receipt.merklePath.length} node{receipt.merklePath.length === 1 ? "" : "s"})</div>
-            {receipt.merklePath.length === 0 ? (
-              <span className="muted" style={{ fontSize: 13 }}>— (the Fixture leaf is the root)</span>
-            ) : (
-              receipt.merklePath.map((node, i) => (
-                <code className="mono receipt-bar" key={i}>{short(toHex(node))}</code>
-              ))
-            )}
-          </div>
-          <div>
-            <div className="receipt-label">Settlement transaction</div>
-            <a className="mono receipt-bar" href={explorer} target="_blank" rel="noreferrer">
-              {short(receipt.signature)} ↗
-            </a>
-          </div>
-        </div>
+        {/* A failed proof is evidence, not a detail: render it open and never let a fan
+            miss it behind a disclosure. */}
+        <Collapsible defaultOpen={check ? !check.ok : false}>
+          <CollapsibleTrigger asChild>
+            <Button variant="ghost" size="sm" className="w-full justify-between px-0">
+              <span>⛓ Check it yourself</span>
+              <span aria-hidden="true" className="text-muted-foreground">Show proof detail</span>
+            </Button>
+          </CollapsibleTrigger>
+
+          <CollapsibleContent className="proof-detail overflow-hidden">
+            <div className="flex flex-col gap-3 pt-3">
+              <div>
+                <ReceiptLabel>TxLINE score root (verified against)</ReceiptLabel>
+                <code className="mono receipt-bar">{toHex(receipt.scoreRoot)}</code>
+                <a
+                  className="mono receipt-bar mt-1.5 block"
+                  href={`https://explorer.solana.com/address/${scoresRootPda(fixtureId).toBase58()}?cluster=devnet`}
+                  target="_blank"
+                  rel="noreferrer"
+                >
+                  Published in a TxLINE-owned account ↗
+                </a>
+                {check && !check.ok && (
+                  <>
+                    <ReceiptLabel className="mt-1.5">Root recomputed here (does not match)</ReceiptLabel>
+                    <code className="mono receipt-bar text-destructive">{toHex(check.computedRoot)}</code>
+                  </>
+                )}
+              </div>
+              <div>
+                <ReceiptLabel>
+                  Merkle path ({receipt.merklePath.length} node{receipt.merklePath.length === 1 ? "" : "s"})
+                </ReceiptLabel>
+                {receipt.merklePath.length === 0 ? (
+                  <span className="text-[13px] text-muted-foreground">— (the Fixture leaf is the root)</span>
+                ) : (
+                  receipt.merklePath.map((node, i) => (
+                    <code className="mono receipt-bar" key={i}>{short(toHex(node))}</code>
+                  ))
+                )}
+              </div>
+              <div>
+                <ReceiptLabel>Settlement transaction</ReceiptLabel>
+                <a className="mono receipt-bar" href={explorer} target="_blank" rel="noreferrer">
+                  {short(receipt.signature)} ↗
+                </a>
+              </div>
+            </div>
+          </CollapsibleContent>
+        </Collapsible>
       </div>
+    </Card>
+  );
+}
+
+function ReceiptLabel({ children, className }: { children: React.ReactNode; className?: string }) {
+  return (
+    <div className={`receipt-label ${className ?? ""}`}>{children}</div>
+  );
+}
+
+function Stat({ label, value, strong }: { label: string; value: string; strong?: boolean }) {
+  return (
+    <div>
+      <div className="receipt-label">{label}</div>
+      <div className={strong ? "receipt-strong" : ""}>{value}</div>
     </div>
   );
 }
