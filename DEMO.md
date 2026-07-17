@@ -19,61 +19,10 @@ The exact startup order and a 3-minute walkthrough. Everything runs on devnet; t
    SUPABASE_DB_URL='postgresql://postgres.<ref>:<password>@...pooler.supabase.com:5432/postgres' pnpm setup:supabase
    ```
 
-   Or paste `supabase/setup.sql` into the dashboard's SQL editor. It creates (idempotently):
-
-   ```sql
-   create table if not exists feed_events (
-     id text primary key,
-     channel text not null,
-     kind text not null,
-     author text not null default '',
-     text text not null,
-     ts bigint not null
-   );
-   create index if not exists feed_events_channel_ts on feed_events (channel, ts desc);
-   alter table feed_events enable row level security;
-   create policy "feed is public" on feed_events for select using (true);
-   create policy "anyone can post" on feed_events for insert with check (true);
-   ```
-
-   And the leaderboard's durable standings (each client records its own settled-Pool result;
-   winning Entries are closed on claim, so this can't be read back from chain):
-
-   ```sql
-   create table if not exists pool_results (
-     id text primary key,          -- '<pool>:<wallet>', write-once per user per Pool
-     pool text not null,
-     channel text not null,        -- 'group:<groupId>'
-     wallet text not null,
-     name text not null,
-     staked numeric not null,
-     won numeric not null,
-     ts bigint not null
-   );
-   create index if not exists pool_results_channel on pool_results (channel);
-   alter table pool_results enable row level security;
-   create policy "results are public" on pool_results for select using (true);
-   create policy "anyone can record" on pool_results for insert with check (true);
-   alter publication supabase_realtime add table pool_results;  -- live board updates
-
-   -- Shared Group membership: a Group follows its members across devices, and the
-   -- Syndicate tab shows a real roster instead of only live presence.
-   create table if not exists group_members (
-     group_id text not null,
-     wallet text not null,
-     name text not null,
-     group_name text not null,
-     ts bigint not null,
-     primary key (group_id, wallet)
-   );
-   alter table group_members enable row level security;
-   create policy "members are public" on group_members for select using (true);
-   create policy "anyone can join" on group_members for insert with check (true);
-   create policy "members can update" on group_members for update using (true);
-   ```
-
-   (Anon-writable by design for the demo — the Feed and leaderboard are a public social layer,
-   not a money path. A client can only report its OWN result.)
+   Or paste `supabase/setup.sql` into the dashboard's SQL editor — that file is the
+   single source of truth for the schema (tables, RLS, realtime publication). The SQL is
+   deliberately not duplicated here: an earlier copy drifted and re-opened an anon write
+   policy that the verified API routes had closed.
 3. ~~Publish demo score roots~~ — no longer a setup step: the keeper self-publishes a
    Fixture's score root right before it settles (over scripted *or* real TxLINE stats).
    `pnpm publish-roots` still exists to pre-publish the scripted slate if you want roots
