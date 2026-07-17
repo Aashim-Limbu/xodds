@@ -44,6 +44,12 @@
   --radius-md: var(--r-md);
   --radius-lg: var(--r-md);
 
+  /* --font-display/--font-mono here and next/font's variables of the same name in
+     layout.tsx both exist. This only works today because next/font's class on <html> is
+     unlayered and unlayered beats the `theme` layer; legacy.css:23-25 reads --font-mono
+     back into --mono. If that layering ever changes, --font-mono: var(--mono) plus
+     --mono: var(--font-mono) becomes a self-reference cycle and the mono font silently
+     falls back app-wide. Do not rename either side without checking the other. */
   --font-display: var(--display);
   --font-sans: var(--body);
   --font-mono: var(--mono);
@@ -78,4 +84,38 @@
 @media (prefers-reduced-motion: reduce) {
   .proof-detail[data-state="open"] { animation: proof-detail-fade 150ms ease; }
   @keyframes proof-detail-fade { from { opacity: 0; } to { opacity: 1; } }
+}
+
+/* The Proof Receipt reveal — the app's signature settlement moment (PRODUCT.md).
+   These hooks carry MOTION ONLY. The legacy .proven-panel/.proven-word/.receipt-body
+   classes also carry visual styling, which leaked into the new markup (white-on-yellow
+   PROVEN, a stray border-right, a column header). Keeping motion and styling on separate
+   classes is what stops that from recurring — do not add visual properties here. */
+@media (prefers-reduced-motion: no-preference) {
+  .reveal-sticker {
+    transition: transform 420ms var(--ease-out), opacity 420ms var(--ease-out);
+  }
+  .reveal-body {
+    transition: transform 300ms var(--ease-out), opacity 300ms var(--ease-out);
+    transition-delay: 60ms;
+  }
+  .reveal-verify {
+    transition: transform 260ms var(--ease-out), opacity 260ms var(--ease-out);
+    transition-delay: 220ms;
+  }
+  @starting-style {
+    .reveal-sticker { opacity: 0; transform: scale(1.15) rotate(-6deg); }
+    .reveal-body { opacity: 0; transform: translateY(8px); }
+    .reveal-verify { opacity: 0; transform: scale(0.9); }
+  }
+}
+
+/* Reduced motion keeps a gentle bridge — opacity only, no movement, no stagger. */
+@media (prefers-reduced-motion: reduce) {
+  .reveal-sticker, .reveal-body, .reveal-verify {
+    transition: opacity 200ms ease;
+  }
+  @starting-style {
+    .reveal-sticker, .reveal-body, .reveal-verify { opacity: 0; }
+  }
 }

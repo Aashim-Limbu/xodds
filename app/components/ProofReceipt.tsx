@@ -25,9 +25,9 @@ function short(hex: string): string {
  * yourself" so the chain never lands on someone who didn't ask for it (PRODUCT.md:
  * crypto is invisible). A FAILED proof is never hidden — it renders open.
  *
- * The class hooks `proven-panel`, `sticker`, `receipt-body`, and `verify` carry the
- * settlement reveal in globals.css (the legacy layer). Renaming them silently kills the
- * app's signature moment — no error, no test failure. Leave them alone.
+ * The class hooks `reveal-sticker`, `reveal-body`, and `reveal-verify` carry the
+ * settlement reveal in globals.css (motion only, unlayered). Renaming them silently kills
+ * the app's signature moment — no error, no test failure. Leave them alone.
  */
 export function ProofReceipt({
   address,
@@ -109,15 +109,15 @@ export function ProofReceipt({
   }
 
   return (
-    <Card className="receipt-split gap-0 overflow-hidden p-0">
-      <div className="proven-panel flex items-center gap-3 border-b-[3px] border-border bg-primary px-5 py-3">
-        <span className="sticker text-2xl" aria-hidden="true">🏆</span>
-        <span className="proven-word font-display text-lg font-extrabold uppercase tracking-[0.06em]">
+    <Card className="gap-0 overflow-hidden p-0">
+      <div className="flex flex-row items-center gap-3 border-b-[3px] border-border bg-primary px-5 py-3">
+        <span className="reveal-sticker text-2xl" aria-hidden="true">🏆</span>
+        <span className="text-foreground font-display text-lg font-extrabold uppercase tracking-[0.06em]">
           Proven
         </span>
       </div>
 
-      <div className="receipt-body flex flex-col gap-4 p-5">
+      <div className="reveal-body flex flex-col gap-4 p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-col gap-1">
             <h2 className="m-0 font-display text-xl font-extrabold uppercase">Proof Receipt</h2>
@@ -148,17 +148,20 @@ export function ProofReceipt({
         {check && (
           <Alert
             variant={check.ok ? "success" : "destructive"}
-            className={`verify ${check.ok ? "verify-ok" : "verify-fail"} flex items-start gap-3`}
-            role="status"
+            className="reveal-verify flex items-start gap-3"
+            role={check.ok ? "status" : "alert"}
           >
-            <span className="verify-mark text-xl leading-none" aria-hidden="true">
+            <span
+              className={`text-xl leading-none ${check.ok ? "text-success" : "text-destructive"}`}
+              aria-hidden="true"
+            >
               {check.ok ? "✓" : "✕"}
             </span>
             <div>
-              <div className="verify-title text-sm font-extrabold uppercase">
+              <div className={`text-sm font-extrabold uppercase ${check.ok ? "text-success" : "text-destructive"}`}>
                 {check.ok ? "Verified in your browser" : "Verification failed"}
               </div>
-              <div className="verify-sub mt-0.5 text-xs text-muted-foreground">
+              <div className="text-muted-foreground text-xs mt-0.5">
                 {check.ok
                   ? "The values below were hashed on your device and reproduce TxLINE’s published root exactly — no trust in us required."
                   : "These values do not reproduce the published root. Do not trust this receipt."}

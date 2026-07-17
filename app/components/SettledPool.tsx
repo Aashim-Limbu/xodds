@@ -1,7 +1,6 @@
 "use client";
 
 import type { PoolTypeName } from "@/lib/anchorClient";
-import type { Fixture } from "@/lib/fixtures";
 import { formatUsdc } from "@/lib/format";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -17,7 +16,6 @@ export function SettledPool({
   pool,
   address,
   labels,
-  fixture,
   myEntries,
   myPayout,
   claimStatus,
@@ -37,7 +35,6 @@ export function SettledPool({
   };
   address: string;
   labels: string[];
-  fixture: Fixture | undefined;
   myEntries: Record<number, bigint | undefined>;
   myPayout: bigint;
   claimStatus: "idle" | "claiming" | "paid";
@@ -68,7 +65,7 @@ export function SettledPool({
           </span>
         </div>
 
-        {fixture && winning !== null && (
+        {winning !== null && (
           <div className="font-display text-2xl font-extrabold uppercase">
             {labels[winning]}
           </div>
