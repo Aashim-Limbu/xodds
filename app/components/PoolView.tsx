@@ -13,7 +13,7 @@ import { useMyName } from "@/lib/useMyName";
 import { friendlyError } from "@/lib/errors";
 import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
 import { Feed } from "./Feed";
-import { ProofReceipt } from "./ProofReceipt";
+import { SettledPool } from "@/components/SettledPool";
 
 const STATE_LABEL: Record<PoolState, string> = {
   open: "Open",
@@ -158,6 +158,29 @@ export function PoolView({ address }: { address: string }) {
   const winTotal = winning !== null ? pool.outcomeTotals[winning] : 0n;
   const myPayout = myWinEntry && winTotal > 0n ? (myWinEntry * pool.pot) / winTotal : myWinEntry ?? 0n;
 
+  if (pool.state === "settled") {
+    return (
+      <div className="pool-view">
+        <SettledPool
+          pool={pool}
+          address={address}
+          labels={labels}
+          fixture={fixture}
+          myEntries={myEntries.map((e) => e ?? undefined)}
+          myPayout={myPayout}
+          claimStatus={claimStatus}
+          paidAmount={paidAmount}
+          busy={busy}
+          canAct={!!client}
+          onClaim={doClaim}
+          onRematch={rematch}
+          error={error}
+        />
+        <Feed feed={feed} />
+      </div>
+    );
+  }
+
   async function act(fn: () => Promise<unknown>): Promise<boolean> {
     setBusy(true);
     setError(null);
@@ -247,7 +270,6 @@ export function PoolView({ address }: { address: string }) {
         <div className="stack" style={{ gap: 14, marginBottom: 20 }}>
           <div className="outcome-grid">
             {labels.map((label, o) => {
-              const isWinner = pool.state === "settled" && pool.winningOutcome === o;
               const mine = myEntries[o];
               // Live parimutuel preview: if I back `stake` here, the pot and this side both
               // grow by it, and a win pays my share of the new pot.
@@ -258,8 +280,7 @@ export function PoolView({ address }: { address: string }) {
               const mult = stake > 0n ? Number(projected) / Number(stake) : 0;
               const share = pool.pot > 0n ? Number((pool.outcomeTotals[o] * 100n) / pool.pot) : 0;
               return (
-                <div key={o} className={`outcome${isWinner ? " win" : ""}`}>
-                  {isWinner && <span className="badge settled">Winner</span>}
+                <div key={o} className="outcome">
                   <span className="outcome-label">{label}</span>
                   <span className="odds">
                     {showOdds && live.referenceProbabilities && <span className="odds-live">LIVE</span>}
@@ -320,28 +341,13 @@ export function PoolView({ address }: { address: string }) {
               </label>
             </div>
           )}
-          {claimStatus === "paid" && (
-            <p className="entry-note">✅ Paid ${formatUsdc(paidAmount ?? 0n)} to your wallet.</p>
-          )}
-          {(pool.state === "settled" || pool.state === "void") && (
+          {pool.state === "void" && (
             <button disabled={busy || !client} onClick={rematch}>
               🔁 Run it back — same Pool, new game
             </button>
           )}
-          {myWinEntry && claimStatus === "claiming" && (
-            <p className="entry-note">🎉 Claiming your ${formatUsdc(myPayout)} payout…</p>
-          )}
-          {myWinEntry && claimStatus === "idle" && (
-            <button disabled={busy || !client} onClick={doClaim}>
-              Claim ${formatUsdc(myPayout)}
-            </button>
-          )}
           {error && <p className="error">{error}</p>}
         </div>
-
-        {pool.state === "settled" && (
-          <ProofReceipt address={address} fixtureId={pool.fixtureId} poolType={pool.poolType} lineX2={pool.lineX2} />
-        )}
       </div>
 
       <Feed feed={feed} />
