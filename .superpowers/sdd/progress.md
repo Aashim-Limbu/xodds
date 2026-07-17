@@ -15,11 +15,12 @@ Base commit: 2c32ee7 (plan commit; task work starts after this)
 - [x] Task 1: complete (commits dfd3894..d0f0820, review clean, browser checks A+B passed)
 - [x] Task 2: complete (commits d0f0820..66ee7be, review clean)
 - [x] Task 3: complete (commits 66ee7be..1581b00, review clean; browser checks 1+4 verified, 2+3 (reveal beats, reduced-motion) NOT human-confirmed)
-- [ ] Task 4: SettledPool payout hero
+- [x] Task 4: complete (commits 1581b00..a0daf6f, review clean after copy fix)
 
 ## Minor findings (for final review triage)
 - Task 2 report (.superpowers/sdd/task-2-report.md:6,41) misdescribes radix-ui provenance as pre-existing; it was newly added. Code correct, report wrong.
 - Task 3 (globals.css collapsible block): reduced-motion path covers [data-state=open] only; close snaps. Asymmetric, low priority.
 - Task 3 (ProofReceipt CollapsibleTrigger): label always "Show proof detail", no "Hide" when expanded. aria-expanded is correct regardless.
-- Pre-existing copy bug surfaced by revamp: `{labels[o]} wins` renders "France win wins" / "Draw wins". poolOutcomeLabels already returns complete statements. Fix = drop the " wins" suffix. Awaiting user decision.
+- RESOLVED (a0daf6f): " wins" suffix dropped from both SettledPool and ProofReceipt headlines.
 - Checks 2+3 for Task 3 (three-beat reveal, reduced-motion) never human-confirmed; legacy.css untouched + all hooks verified present, so risk is low but unproven.
+- Task 4 (PoolView.tsx): file grew 350->356 despite the extraction; net of a ~22-line early-return wrapper vs deleted branches. Not duplication, but not the predicted shrink either.
