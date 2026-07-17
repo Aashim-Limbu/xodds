@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { friendlyError } from "@/lib/errors";
 import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
@@ -47,10 +47,20 @@ export function CreatePoolModal({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  if (!fixture) return null;
   const hasLine = poolType !== "matchWinner";
   // Feed-suggested goals lines (already filtered to half-integers) win over the defaults.
   const lines = poolType === "totalGoals" && live.goalLines?.length ? live.goalLines : LINES[poolType] ?? [];
+
+  // If live lines arrive after the user picked the market, the selected line may no longer
+  // be among the visible chips — creating a pool on a hidden line (Codex P2). Re-centre it.
+  useEffect(() => {
+    if (hasLine && lines.length && !lines.includes(lineX2)) {
+      setLineX2(lines[Math.floor(lines.length / 2)]);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [hasLine, lines.join(","), lineX2]);
+
+  if (!fixture) return null;
   const probs = live.referenceProbabilities ?? fixture.referenceProbabilities;
   const hasOdds = poolType === "matchWinner" && probs.some((p) => p > 0);
 

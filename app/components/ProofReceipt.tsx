@@ -7,6 +7,7 @@ import { verifyScoreProof } from "@/lib/proof";
 import { scoresRootPda } from "@/lib/pdas";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { fixtureById, poolOutcomeLabels } from "@/lib/fixtures";
+import { useFixtures } from "@/lib/useTxlineLive";
 
 function short(hex: string): string {
   return hex.length <= 20 ? hex : `${hex.slice(0, 10)}…${hex.slice(-10)}`;
@@ -33,6 +34,7 @@ export function ProofReceipt({
   // Settlement is public: fall back to a wallet-less client so the receipt renders on the
   // public share page (and to any signed-out viewer) exactly as it does in-app.
   const client = useMemo(() => authed ?? readOnlyClient(), [authed]);
+  useFixtures(); // hydrate real TxLINE fixtures on direct /receipt/<id> loads (Codex P2)
   const [receipt, setReceipt] = useState<SettlementReceipt | null>(null);
   const [loading, setLoading] = useState(true);
   const [shared, setShared] = useState(false);

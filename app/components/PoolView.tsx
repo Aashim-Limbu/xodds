@@ -6,7 +6,7 @@ import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { useFeed } from "@/lib/feed";
 import type { PoolAccount, PoolState } from "@/lib/anchorClient";
 import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
-import { useTxlineLive } from "@/lib/useTxlineLive";
+import { useFixtures, useTxlineLive } from "@/lib/useTxlineLive";
 import { recordResult } from "@/lib/useLeaderboard";
 import { decimalOdds, formatUsdc, parseUsdc } from "@/lib/format";
 import { useMyName } from "@/lib/useMyName";
@@ -38,6 +38,9 @@ const SYSTEM_POST: Partial<Record<PoolState, string>> = {
  * Feed, and — once Settled — the Proof Receipt. */
 export function PoolView({ address }: { address: string }) {
   const { client, address: wallet, getAccessToken } = useFinalWhistle();
+  // Hydrate real TxLINE fixtures on direct /pool/<id> loads — without this, fixtureById only
+  // knows the static demo slate and real pools render as "Fixture <id>" (Codex P2).
+  useFixtures();
   const { name: displayName } = useMyName();
   const poolKey = new PublicKey(address);
   const [pool, setPool] = useState<PoolAccount | null>(null);
