@@ -12,8 +12,8 @@ const buttonVariants = cva(
         default: "bg-foreground text-white",
         primary: "bg-primary text-primary-foreground",
         secondary: "bg-card text-foreground hover:bg-secondary",
-        ghost: "border-transparent bg-transparent shadow-none hover:bg-secondary hover:translate-x-0 hover:translate-y-0 hover:shadow-none",
-        link: "border-transparent bg-transparent shadow-none underline-offset-4 hover:underline hover:translate-x-0 hover:translate-y-0 hover:shadow-none",
+        ghost: "border-transparent bg-transparent shadow-none text-foreground hover:bg-secondary hover:translate-x-0 hover:translate-y-0 hover:shadow-none",
+        link: "border-transparent bg-transparent shadow-none text-foreground underline-offset-4 hover:underline hover:translate-x-0 hover:translate-y-0 hover:shadow-none",
       },
       size: {
         default: "px-4 py-[10px]",
