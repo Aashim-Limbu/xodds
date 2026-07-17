@@ -9,8 +9,8 @@ const alertVariants = cva(
     variants: {
       variant: {
         default: "bg-card text-foreground",
-        success: "bg-card text-foreground",
-        destructive: "bg-card text-foreground",
+        success: "bg-[var(--tint-open)] text-foreground",
+        destructive: "bg-[var(--tint-void)] text-foreground",
       },
     },
     defaultVariants: { variant: "default" },

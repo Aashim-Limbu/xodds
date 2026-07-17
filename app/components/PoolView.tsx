@@ -160,12 +160,11 @@ export function PoolView({ address }: { address: string }) {
 
   if (pool.state === "settled") {
     return (
-      <div className="pool-view">
+      <div className="pool-layout">
         <SettledPool
           pool={pool}
           address={address}
           labels={labels}
-          fixture={fixture}
           myEntries={myEntries.map((e) => e ?? undefined)}
           myPayout={myPayout}
           claimStatus={claimStatus}
