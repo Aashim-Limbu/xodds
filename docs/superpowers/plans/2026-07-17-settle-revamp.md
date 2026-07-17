@@ -399,9 +399,17 @@ export { Skeleton };
 
 `motion-safe:` keeps the pulse off under reduced motion, matching `legacy.css:1363-1365`.
 
-- [ ] **Step 7: Leave Collapsible and Separator unstyled**
+- [ ] **Step 7: Leave Collapsible and Separator as generated**
 
-`collapsible.tsx` needs no retheme — Task 3 supplies its animation and classes. In `app/components/ui/separator.tsx`, change the border colour to ink by replacing `bg-border` with `bg-border` (already correct via Task 1's `--color-border: var(--ink)`) and confirm no change is needed.
+Neither needs a retheme. `collapsible.tsx` gets its animation and classes from Task 3. `separator.tsx` already uses `bg-border`, which Task 1 mapped to `var(--ink)` — it renders ink automatically.
+
+Confirm and move on:
+
+```bash
+cd app && grep -n "bg-border" components/ui/separator.tsx
+```
+
+Expected: a match. If `bg-border` is absent, add it to the separator's className. Otherwise change nothing.
 
 - [ ] **Step 8: Typecheck**
 
