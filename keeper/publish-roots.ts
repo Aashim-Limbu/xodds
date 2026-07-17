@@ -1,8 +1,8 @@
 import { readFileSync } from "node:fs";
 import { AnchorProvider, BN, Program, Wallet } from "@coral-xyz/anchor";
 import { Connection, Keypair, SystemProgram } from "@solana/web3.js";
-import idl from "../target/idl/txline_mock.json";
-import type { TxlineMock } from "../target/types/txline_mock.js";
+import idl from "./idl/txline_mock.json";
+import type { TxlineMock } from "./idl/txline_mock.js";
 import { buildScoreProof, scoresRootPda } from "./merkle.js";
 import { StandInTxLine } from "./txline.js";
 

@@ -10,10 +10,12 @@ export const MATCH_WINNER = { matchWinner: {} };
 /** Total Goals O/U: 0 = Over, 1 = Under. */
 export const TOTAL_GOALS = { totalGoals: {} };
 
-type PoolTypeName = "matchWinner" | "totalGoals";
+type PoolTypeName = "matchWinner" | "totalGoals" | "totalCorners" | "totalCards";
 const POOL_TYPES: Record<PoolTypeName, { arg: object; byte: number }> = {
   matchWinner: { arg: MATCH_WINNER, byte: 0 },
   totalGoals: { arg: TOTAL_GOALS, byte: 1 },
+  totalCorners: { arg: { totalCorners: {} }, byte: 2 },
+  totalCards: { arg: { totalCards: {} }, byte: 3 },
 };
 
 type Program = Harness["program"];

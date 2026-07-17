@@ -4,17 +4,21 @@
   "private": true,
   "description": "FinalWhistle — friend-Group parimutuel Pools settled by TxLINE Score Proof",
   "type": "module",
+  "packageManager": "pnpm@10.33.0",
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit",
     "keeper": "tsx keeper/index.ts",
-    "publish-roots": "tsx keeper/publish-roots.ts"
+    "keeper:once": "tsx keeper/index.ts --once",
+    "publish-roots": "tsx keeper/publish-roots.ts",
+    "setup:supabase": "psql \"$SUPABASE_DB_URL\" -f supabase/setup.sql"
   },
   "devDependencies": {
     "@noble/hashes": "1.8.0",
     "@types/node": "^22.10.0",
     "tsx": "^4.19.0",
+    "tweetnacl": "^1.0.3",
     "typescript": "^5.7.0",
     "vitest": "^2.1.0"
   },

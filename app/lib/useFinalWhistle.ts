@@ -16,7 +16,7 @@ type AnyTx = Transaction | VersionedTransaction;
  * and their embedded wallet exists.
  */
 export function useFinalWhistle() {
-  const { ready, authenticated, login, logout, user } = usePrivy();
+  const { ready, authenticated, login, logout, user, getAccessToken } = usePrivy();
   const { wallets } = useSolanaWallets();
   const wallet = wallets[0];
 
@@ -42,7 +42,10 @@ export function useFinalWhistle() {
     login,
     logout,
     address: wallet?.address ?? null,
-    email: user?.email?.address ?? null,
+    // Email lives in a different field per login method (email-code vs Google OAuth).
+    email: user?.email?.address ?? user?.google?.email ?? null,
     client,
+    /** Privy access token for the server-verified API routes (null when signed out). */
+    getAccessToken,
   };
 }

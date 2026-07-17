@@ -43,8 +43,11 @@ and the on-chain program verifies (ADR-0008).
 `txline.ts` defines the `TxLineClient` the Keeper reads from and ships a `StandInTxLine`
 with scripted results for the demo slate. `lock` and `void_expired` need nothing from
 TxLINE and run fully against devnet. `settle` needs TxLINE's on-chain `daily_scores_roots`
-account (the trust boundary) — the stand-in returns none, because only TxLINE can own that
-account; wire a real `TxLineClient` (or a mock scores publisher) to exercise settle live.
+account (the trust boundary). On devnet the Keeper re-anchors results under our own
+`txline_mock` root (ADR-0008): right before `settle` it publishes the Fixture's score root
+itself if the PDA doesn't exist yet — works for both the scripted stand-in and the real
+TxLINE feed (`txline-live.ts`), no manual publish step. Real-feed roots are single-leaf
+(root = leaf hash) so publish and settle can never drift apart across ticks.
 
 ## Tested
 

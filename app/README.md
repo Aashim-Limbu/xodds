@@ -26,16 +26,10 @@ pnpm dev                     # http://localhost:3000
 - `NEXT_PUBLIC_PROGRAM_ID` — the deployed program (defaults to the workspace program id).
 - `NEXT_PUBLIC_USDC_MINT` — a devnet USDC-like SPL mint (see below).
 
-## Deploy the program to devnet (once)
+## The programs are live on devnet
 
-The program isn't deployed yet — the automated devnet faucet was exhausted at build time.
-Fund the wallet and deploy from the repo root:
-
-```sh
-solana config set --url devnet
-solana airdrop 2                     # repeat until you have ~3 SOL (faucet is flaky)
-anchor deploy --provider.cluster devnet   # deploys at the program id in Anchor.toml / the IDL
-```
+`finalwhistle` (3twLVgx…) and `txline_mock` (7yYhmy4x…) are deployed — no deploy step needed.
+To redeploy after program changes: `anchor deploy --provider.cluster devnet` from the repo root.
 
 ## Devnet USDC for testing
 

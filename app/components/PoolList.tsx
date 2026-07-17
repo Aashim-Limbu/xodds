@@ -9,15 +9,19 @@ import { fixtureById, poolTypeLabel } from "@/lib/fixtures";
 import { formatUsdc } from "@/lib/format";
 import { Avatars, fakeParticipants } from "./Avatars";
 
-const STATE_LABEL: Record<PoolState, string> = {
-  open: "● Open",
-  locked: "🔒 Locked",
-  settled: "● Settled",
-  void: "↩ Void",
+const CHIP_LABEL: Record<PoolState, string> = {
+  open: "OPEN",
+  locked: "LOCKED",
+  settled: "SETTLED",
+  void: "VOID",
 };
 
-// A sport-ish glyph per fixture, keyed off fixtureId so it's stable. Decorative.
-const ICONS = ["⚽", "🏆", "🥅", "🎯"];
+// A Material Symbol per fixture, keyed off fixtureId so it's stable. Decorative.
+const ICONS = ["sports_soccer", "sports_motorsports", "sports_basketball", "emoji_events"];
+
+function maxBig(xs: bigint[]): bigint {
+  return xs.reduce((m, x) => (x > m ? x : m), 0n);
+}
 
 type Filter = "all" | "open" | "settled";
 
@@ -51,14 +55,9 @@ export function PoolList({ group, refreshKey }: { group: PublicKey; refreshKey: 
     <>
       <div className="section-head">
         <h2 className="section-title">Active Pools</h2>
-        <div className="filter-pills" role="group" aria-label="Filter Pools">
+        <div className="filter-seg" role="group" aria-label="Filter Pools">
           {(["all", "open", "settled"] as Filter[]).map((f) => (
-            <button
-              key={f}
-              className="filter-pill"
-              aria-pressed={filter === f}
-              onClick={() => setFilter(f)}
-            >
+            <button key={f} aria-pressed={filter === f} onClick={() => setFilter(f)}>
               {f}
             </button>
           ))}
@@ -86,39 +85,43 @@ export function PoolList({ group, refreshKey }: { group: PublicKey; refreshKey: 
             const open = p.state === "open";
             return (
               <Link key={seed} href={`/pool/${seed}`} className="card-link">
-                <div className="panel pool-card">
-                  <div className={`pool-card-head is-${p.state}`}>
-                    <span className="pool-icon" aria-hidden="true">
-                      {ICONS[Number(p.fixtureId % 4n)]}
-                    </span>
-                    <div style={{ minWidth: 0 }}>
-                      <div className="pool-card-title">
-                        {f ? `${f.home} vs ${f.away}` : `Fixture ${p.fixtureId}`}
+                <div className={`panel pool-card is-${p.state}`}>
+                  <div className="pc-body">
+                    <div className="pc-head">
+                      <div className="row" style={{ gap: 12, minWidth: 0 }}>
+                        <span className={`pc-icon sport-${Number(p.fixtureId % 4n)}`} aria-hidden="true">
+                          <span className="msym">{ICONS[Number(p.fixtureId % 4n)]}</span>
+                        </span>
+                        <div style={{ minWidth: 0 }}>
+                          <div className="pc-title">
+                            {f ? `${f.home} vs ${f.away}` : `Fixture ${p.fixtureId}`}
+                          </div>
+                          <div className="pc-sub">{poolTypeLabel(p.poolType, p.lineX2)}</div>
+                        </div>
                       </div>
-                      <div className="pool-card-sub">{poolTypeLabel(p.poolType, p.lineX2)}</div>
+                      <span className={`pc-chip is-${p.state}`}>{CHIP_LABEL[p.state]}</span>
                     </div>
-                    <span className={`badge ${p.state}`} style={{ marginLeft: "auto" }}>
-                      {STATE_LABEL[p.state]}
-                    </span>
-                  </div>
 
-                  <div className="pool-card-body">
-                    <div className="meta-row">
-                      <span>Total pot</span>
-                      <span className="value pot">${formatUsdc(p.pot)}</span>
+                    <div className="pc-cells">
+                      <div className="pc-cell">
+                        <span className="label">Total pot</span>
+                        <span className="num">${formatUsdc(p.pot)}</span>
+                      </div>
+                      <div className="pc-cell">
+                        <span className="label">Top side</span>
+                        <span className="num">${formatUsdc(maxBig(p.outcomeTotals))}</span>
+                      </div>
                     </div>
-                    <div className="meta-row">
-                      <span>Min entry</span>
-                      <span className="value">$5.00</span>
-                    </div>
-                    <div className="meta-row" style={{ borderBottom: "none" }}>
-                      <span>Participants</span>
+
+                    <div className="pc-parts">
+                      <span className="label">Participants</span>
                       <Avatars seed={seed} count={parts} />
                     </div>
-                    <span className={`join-btn${open ? "" : " ghost"}`}>
-                      {open ? "Join pool" : "View pool"}
-                    </span>
                   </div>
+
+                  <span className={`pc-action ${open ? "join" : "view"}`}>
+                    {open ? "Join pool" : "View pool"}
+                  </span>
                 </div>
               </Link>
             );

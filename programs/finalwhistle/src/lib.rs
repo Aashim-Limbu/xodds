@@ -162,16 +162,11 @@ pub mod finalwhistle {
                 Ordering::Equal => 1u8,
                 Ordering::Less => 2u8,
             },
-            // Total Goals O/U: compare total*2 to the half-integer Line*2 -> 0 Over / 1 Under.
+            // O/U types: compare total*2 to the half-integer Line*2 -> 0 Over / 1 Under.
             // The Line is odd and total*2 is even, so they never tie (no push).
-            PoolType::TotalGoals => {
-                let total = proof.home_goals as u16 + proof.away_goals as u16;
-                if total * 2 > pool.line_x2 {
-                    0u8
-                } else {
-                    1u8
-                }
-            }
+            PoolType::TotalGoals => over_under(proof.home_goals, proof.away_goals, pool.line_x2),
+            PoolType::TotalCorners => over_under(proof.home_corners, proof.away_corners, pool.line_x2),
+            PoolType::TotalCards => over_under(proof.home_cards, proof.away_cards, pool.line_x2),
         };
 
         // Nobody backed the proven Outcome -> Void, so the pot isn't stranded (ADR-0003).
@@ -618,20 +613,29 @@ pub enum PoolType {
     MatchWinner,
     /// Total Goals Over/Under a Line — 2 Outcomes (Over / Under).
     TotalGoals,
+    /// Total Corners Over/Under a Line — 2 Outcomes (Over / Under).
+    TotalCorners,
+    /// Total Cards Over/Under a Line — 2 Outcomes (Over / Under).
+    TotalCards,
 }
 
 impl PoolType {
     pub fn outcome_count(&self) -> usize {
         match self {
             PoolType::MatchWinner => 3,
-            PoolType::TotalGoals => 2,
+            PoolType::TotalGoals | PoolType::TotalCorners | PoolType::TotalCards => 2,
         }
     }
 
     /// Whether this Pool Type settles against a Line (an Over/Under threshold).
     pub fn has_line(&self) -> bool {
-        matches!(self, PoolType::TotalGoals)
+        !matches!(self, PoolType::MatchWinner)
     }
+}
+
+/// The shared O/U predicate: home+away total vs the half-integer Line (both doubled).
+fn over_under(home: u8, away: u8, line_x2: u16) -> u8 {
+    if (home as u16 + away as u16) * 2 > line_x2 { 0 } else { 1 }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
