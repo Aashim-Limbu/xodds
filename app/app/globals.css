@@ -54,3 +54,28 @@
 
   --ease-brut: var(--ease-out);
 }
+
+/* "Check it yourself" disclosure. Radix ships unstyled, so without this the proof
+   detail snaps open. Values follow the existing vocabulary (--ease-out, sub-300ms). */
+@media (prefers-reduced-motion: no-preference) {
+  .proof-detail[data-state="open"] {
+    animation: proof-detail-open 200ms var(--ease-out);
+  }
+  .proof-detail[data-state="closed"] {
+    animation: proof-detail-close 200ms var(--ease-out);
+  }
+  @keyframes proof-detail-open {
+    from { height: 0; opacity: 0; }
+    to { height: var(--radix-collapsible-content-height); opacity: 1; }
+  }
+  @keyframes proof-detail-close {
+    from { height: var(--radix-collapsible-content-height); opacity: 1; }
+    to { height: 0; opacity: 0; }
+  }
+}
+
+/* Reduced motion: fade only, no height animation. */
+@media (prefers-reduced-motion: reduce) {
+  .proof-detail[data-state="open"] { animation: proof-detail-fade 150ms ease; }
+  @keyframes proof-detail-fade { from { opacity: 0; } to { opacity: 1; } }
+}
