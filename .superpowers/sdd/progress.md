@@ -12,10 +12,10 @@ Base commit: 2c32ee7 (plan commit; task work starts after this)
 - Devnet e2e (`pnpm tsx keeper/e2e-devnet.ts`) is runnable — user has the deploy wallet.
 
 ## Tasks
-- [ ] Task 1: Tailwind v4 coexistence infrastructure
-- [ ] Task 2: Retheme'd shadcn primitives
+- [x] Task 1: complete (commits dfd3894..d0f0820, review clean, browser checks A+B passed)
+- [x] Task 2: complete (commits d0f0820..66ee7be, review clean)
 - [ ] Task 3: ProofReceipt receipt-first rewrite
 - [ ] Task 4: SettledPool payout hero
 
 ## Minor findings (for final review triage)
-(none yet)
+- Task 2 report (.superpowers/sdd/task-2-report.md:6,41) misdescribes radix-ui provenance as pre-existing; it was newly added. Code correct, report wrong.
