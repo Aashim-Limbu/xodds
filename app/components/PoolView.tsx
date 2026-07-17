@@ -37,7 +37,7 @@ const SYSTEM_POST: Partial<Record<PoolState, string>> = {
 /** Live view of one Pool: pot, per-Outcome totals + Reference Odds, place Entry, the live
  * Feed, and — once Settled — the Proof Receipt. */
 export function PoolView({ address }: { address: string }) {
-  const { client, address: wallet } = useFinalWhistle();
+  const { client, address: wallet, getAccessToken } = useFinalWhistle();
   const { name: displayName } = useMyName();
   const poolKey = new PublicKey(address);
   const [pool, setPool] = useState<PoolAccount | null>(null);
@@ -136,10 +136,12 @@ export function PoolView({ address }: { address: string }) {
     const winTotal = pool.outcomeTotals[pool.winningOutcome];
     const won = winEntry > 0n && winTotal > 0n ? (winEntry * pool.pot) / winTotal : 0n;
     const channel = `group:${pool.group.toBase58()}`;
-    void recordResult(channel, { pool: address, wallet, name: displayName, staked, won, ts: Date.now() }).then((streak) => {
-      if (streak && streak >= 3) feed.postSystem(`streak:${wallet}:${streak}`, `🔥 ${displayName} is on a ${streak}-win streak!`);
-    });
-  }, [pool, myEntries, wallet, address, displayName, feed]);
+    void getAccessToken()
+      .then((t) => (t ? recordResult(channel, { pool: address, wallet, name: displayName, staked, won, ts: Date.now() }, t) : null))
+      .then((streak) => {
+        if (streak && streak >= 3) feed.postSystem(`streak:${wallet}:${streak}`, `🔥 ${displayName} is on a ${streak}-win streak!`);
+      });
+  }, [pool, myEntries, wallet, address, displayName, feed, getAccessToken]);
 
   if (!pool) return <div className="panel muted">Loading Pool…</div>;
 

@@ -33,8 +33,9 @@ create index if not exists pool_results_channel on pool_results (channel);
 alter table pool_results enable row level security;
 drop policy if exists "results are public" on pool_results;
 create policy "results are public" on pool_results for select using (true);
+-- Writes go through the verified /api/results route (service role) — anon inserts let
+-- anyone forge standings (Codex P1), so no insert policy here.
 drop policy if exists "anyone can record" on pool_results;
-create policy "anyone can record" on pool_results for insert with check (true);
 
 -- ---- Identity + Groups (v2: server-verified writes) ----
 -- Reads are public; there are NO anon write policies on these tables. Every mutation goes
