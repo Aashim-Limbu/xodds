@@ -137,7 +137,7 @@ export function ProofReceipt({
         </div>
 
         <div className="font-display text-2xl font-extrabold uppercase">
-          {labels[receipt.winningOutcome]} wins
+          {labels[receipt.winningOutcome]}
         </div>
 
         <p className="m-0 text-[13px] text-muted-foreground">

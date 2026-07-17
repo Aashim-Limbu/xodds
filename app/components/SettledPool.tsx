@@ -70,7 +70,7 @@ export function SettledPool({
 
         {fixture && winning !== null && (
           <div className="font-display text-2xl font-extrabold uppercase">
-            {labels[winning]} wins
+            {labels[winning]}
           </div>
         )}
 
