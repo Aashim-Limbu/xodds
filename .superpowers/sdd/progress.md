@@ -41,4 +41,5 @@ Base commit: 2c32ee7 (plan commit; task work starts after this)
 ## Verified after fix (headless screenshot + DOM, 6139829)
 - Header horizontal, ink-on-yellow, no border-right. Verify banner green-tinted. Headline "FRANCE WIN". Detail collapsed, no hex. Zero legacy leak classes in DOM.
 - STILL UNCONFIRMED BY HUMAN: three-beat reveal timing + reduced-motion path.
+- Re-review of 6139829 (sonnet): APPROVED. All 7 findings fixed; .reveal-* motion values verified byte-for-byte vs legacy.css:953-981; no visual props leaked into the motion hooks; legacy.css untouched; no logic drift.
 
