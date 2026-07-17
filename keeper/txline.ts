@@ -21,6 +21,9 @@ export interface TxLineClient {
   scoresRootAccount(fixtureId: bigint): PublicKey | null;
   /** Other Fixtures sharing the Fixture's daily root — the proof's Merkle decoys. */
   siblings(fixtureId: bigint): FixtureStats[];
+  /** Optional: warm any network-backed cache for these Fixtures before a tick reads them
+   * synchronously. The StandIn has no network and omits it; RealTxLine implements it. */
+  refresh?(fixtureIds: bigint[]): Promise<void>;
 }
 
 /**

@@ -4,20 +4,22 @@ import {
   getAssociatedTokenAddressSync,
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
-import { type Connection, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
 import idl from "./idl/finalwhistle.json";
 import type { Finalwhistle } from "./idl/finalwhistle";
-import { usdcMint } from "./config";
+import { RPC_URL, usdcMint } from "./config";
 import { entryPda, escrowPda, poolPda } from "./pdas";
 
 export type PoolState = "open" | "locked" | "settled" | "void";
-export type PoolTypeName = "matchWinner" | "totalGoals";
+export type PoolTypeName = "matchWinner" | "totalGoals" | "totalCorners" | "totalCards";
 
 const POOL_TYPE_ARG: Record<PoolTypeName, object> = {
   matchWinner: { matchWinner: {} },
   totalGoals: { totalGoals: {} },
+  totalCorners: { totalCorners: {} },
+  totalCards: { totalCards: {} },
 };
-const POOL_TYPE_BYTE: Record<PoolTypeName, number> = { matchWinner: 0, totalGoals: 1 };
+const POOL_TYPE_BYTE: Record<PoolTypeName, number> = { matchWinner: 0, totalGoals: 1, totalCorners: 2, totalCards: 3 };
 
 export interface ProvenStats {
   homeGoals: number;
@@ -81,6 +83,17 @@ export class FinalWhistleClient {
 
   get wallet(): PublicKey {
     return this.program.provider.publicKey!;
+  }
+
+  /** First free nonce for a Group + Fixture + Pool Type, probed against the chain. Counting
+   * decodable Pools is not enough: pre-upgrade relic accounts still occupy their PDAs (they
+   * are skipped by listPools) and would collide with a count-derived nonce. */
+  async freeNonce(group: PublicKey, fixtureId: bigint, poolType: PoolTypeName): Promise<bigint> {
+    const conn = this.program.provider.connection;
+    for (let nonce = 0n; ; nonce++) {
+      const pda = poolPda(group, fixtureId, nonce, POOL_TYPE_BYTE[poolType]);
+      if (!(await conn.getAccountInfo(pda))) return nonce;
+    }
   }
 
   /** Create a Pool on a Fixture in `group`; returns the Pool address. `lineX2` is the
@@ -198,7 +211,8 @@ export class FinalWhistleClient {
     const pools: PoolAccount[] = [];
     for (const { pubkey, account } of raw) {
       try {
-        pools.push(this.decode(pubkey, this.program.coder.accounts.decode("Pool", account.data)));
+        // NB: the accounts coder keys layouts by camelCased IDL name — "pool", not "Pool".
+        pools.push(this.decode(pubkey, this.program.coder.accounts.decode("pool", account.data)));
       } catch {
         // not a current-layout Pool — skip
       }
@@ -253,4 +267,18 @@ export class FinalWhistleClient {
 /** Lowercase hex of a byte array, for rendering roots and Merkle nodes. */
 export function toHex(bytes: Uint8Array): string {
   return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/**
+ * A wallet-less client for PUBLIC reads (share pages, OG images) — settlement data is all
+ * on-chain. The dummy signer throws if anything tries to sign; only read paths use this.
+ * Runs on the server (OG route) and the browser (public receipt page).
+ */
+export function readOnlyClient(): FinalWhistleClient {
+  const connection = new Connection(RPC_URL, "confirmed");
+  const noSign = (): never => {
+    throw new Error("readOnlyClient cannot sign");
+  };
+  const wallet = { publicKey: PublicKey.default, signTransaction: noSign, signAllTransactions: noSign } as unknown as Wallet;
+  return new FinalWhistleClient(connection, wallet);
 }

@@ -8,6 +8,8 @@ export interface Fixture {
   home: string;
   away: string;
   kickoff: number; // unix seconds
+  /** Competition name from TxLINE ("World Cup", "Friendlies"); "Demo" for the static slate. */
+  competition?: string;
   /** Reference Odds as implied probabilities per Outcome [home win, draw, away win]. */
   referenceProbabilities: [number, number, number];
   /** Scripted in-match events for the Feed — a stand-in for TxLINE's live scores stream
@@ -50,18 +52,37 @@ export function fixtureById(id: bigint): Fixture | undefined {
   return FIXTURES.find((f) => f.fixtureId === id);
 }
 
+/**
+ * Merge real TxLINE Fixtures (from /api/txline/fixtures) into the slate, so fixtureById keeps
+ * working synchronously in every component. Real Fixtures carry no scripted odds/events — the
+ * live TxLINE routes provide those. ponytail: module-level mutation, fine for a client slate;
+ * move to context if fixtures ever need to be reactive outside useFixtures().
+ */
+export function hydrateFixtures(
+  real: Array<{ fixtureId: string; home: string; away: string; kickoff: number; competition?: string }>,
+): void {
+  for (const r of real) {
+    const id = BigInt(r.fixtureId);
+    if (!FIXTURES.some((f) => f.fixtureId === id)) {
+      FIXTURES.push({
+        fixtureId: id, home: r.home, away: r.away, kickoff: r.kickoff,
+        competition: r.competition || "Friendlies",
+        referenceProbabilities: [0, 0, 0],
+      });
+    }
+  }
+}
+
 /** Outcome labels for a Match Winner (1X2) Pool on a Fixture. */
 export function outcomeLabels(f: Fixture): [string, string, string] {
   return [`${f.home} win`, "Draw", `${f.away} win`];
 }
 
 /** Outcome labels for any Pool Type: 1X2 for MatchWinner, Over/Under for Total Goals. */
-export function poolOutcomeLabels(
-  poolType: "matchWinner" | "totalGoals",
-  lineX2: number,
-  f?: Fixture,
-): string[] {
-  if (poolType === "totalGoals") {
+export type AnyPoolType = "matchWinner" | "totalGoals" | "totalCorners" | "totalCards";
+
+export function poolOutcomeLabels(poolType: AnyPoolType, lineX2: number, f?: Fixture): string[] {
+  if (poolType !== "matchWinner") {
     const line = lineX2 / 2;
     return [`Over ${line}`, `Under ${line}`];
   }
@@ -69,6 +90,12 @@ export function poolOutcomeLabels(
 }
 
 /** Human label for a Pool Type. */
-export function poolTypeLabel(poolType: "matchWinner" | "totalGoals", lineX2: number): string {
-  return poolType === "totalGoals" ? `Total Goals O/U ${lineX2 / 2}` : "Match Winner (1X2)";
+const OU_LABEL: Record<Exclude<AnyPoolType, "matchWinner">, string> = {
+  totalGoals: "Total Goals",
+  totalCorners: "Total Corners",
+  totalCards: "Total Cards",
+};
+
+export function poolTypeLabel(poolType: AnyPoolType, lineX2: number): string {
+  return poolType === "matchWinner" ? "Match Winner (1X2)" : `${OU_LABEL[poolType]} O/U ${lineX2 / 2}`;
 }
