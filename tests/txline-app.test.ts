@@ -100,4 +100,7 @@ describe("pickGoalLines", () => {
   it("ignores first-half markets and other odds types", () => {
     expect(pickGoalLines([ou(1.5, "half=1"), { ...ou(2.5), SuperOddsType: "1X2_PARTICIPANT_RESULT" }])).toEqual([]);
   });
+  it("drops a lone quarter-line entirely (never rounds 2.25 to 2.5)", () => {
+    expect(pickGoalLines([ou(2.25)])).toEqual([]);
+  });
 });

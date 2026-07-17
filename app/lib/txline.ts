@@ -125,8 +125,10 @@ export function pickGoalLines(odds: OddsPayload[]): number[] {
     if (!isGoalsOU(p.SuperOddsType) || !isFullTime(p)) continue;
     const line = marketLine(p);
     if (line === undefined) continue;
-    const x2 = Math.round(line * 2);
-    if (x2 % 2 === 1) lines.add(x2); // odd ×2 = half-integer line
+    const x2 = line * 2;
+    // Exact half-integer lines only: 2.5 -> 5 ✓; quarter lines (2.25 -> 4.5) are DROPPED,
+    // not rounded — the feed never quoted 2.5 (Codex P2).
+    if (Number.isInteger(x2) && x2 % 2 === 1) lines.add(x2);
   }
   return [...lines].sort((a, b) => a - b);
 }

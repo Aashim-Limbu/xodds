@@ -32,21 +32,24 @@ const toResult = (r: ResultRow): PoolResult => ({
  * re-viewing a settled Pool doesn't double-count. Returns the resulting current win streak
  * (for the streak sticker), or null when unrecorded (no Supabase / already recorded).
  */
-export async function recordResult(channel: string, result: PoolResult): Promise<number | null> {
+export async function recordResult(channel: string, result: PoolResult, token: string): Promise<number | null> {
   if (!supabase) return null;
-  const id = `${result.pool}:${result.wallet}`;
-  const { error } = await supabase.from("pool_results").insert({
-    id,
-    pool: result.pool,
-    channel,
-    wallet: result.wallet,
-    name: result.name,
-    staked: result.staked.toString(),
-    won: result.won.toString(),
-    ts: result.ts,
-  });
-  // Duplicate (already recorded) or missing table -> no sticker.
-  if (error) return null;
+  // Server-verified write: the route binds the row to the caller's wallet (Codex P1 —
+  // anon inserts let anyone forge standings). Reads below stay on the public anon key.
+  const res = await fetch("/api/results", {
+    method: "POST",
+    headers: { "Content-Type": "application/json", Authorization: `Bearer ${token}` },
+    body: JSON.stringify({
+      pool: result.pool,
+      channel,
+      name: result.name,
+      staked: result.staked.toString(),
+      won: result.won.toString(),
+      ts: result.ts,
+    }),
+  }).catch(() => null);
+  // Duplicate (already recorded), signed out, or unconfigured server -> no sticker.
+  if (!res?.ok || !((await res.json()) as { recorded?: boolean }).recorded) return null;
 
   const { data } = await supabase
     .from("pool_results")

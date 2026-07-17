@@ -13,6 +13,7 @@ export function useTxlineLive(fixtureId: bigint): TxlineLive {
 
   // Snapshot: seeds Reference Odds + Feed lines, and re-polls so the live scoreline moves.
   useEffect(() => {
+    setLive({}); // switching fixtures must not keep the previous fixture's odds/score/lines
     if (!fixtureId) return; // 0n is falsy — skip until the Pool's real fixtureId loads
     let alive = true;
     const load = () =>
