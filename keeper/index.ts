@@ -36,6 +36,12 @@ async function chooseTxLine(): Promise<TxLineClient> {
 }
 
 async function main() {
+  // Public devnet rate-limits getProgramAccounts/sendTransaction — the source of the 429s
+  // (web3.js auto-retries, so nothing is lost, but it's noisy). Point KEEPER_RPC_URL at a
+  // dedicated devnet RPC (Helius/QuickNode/Alchemy free tier) to stop them.
+  if (RPC_URL.includes("api.devnet.solana.com")) {
+    console.warn("[keeper] using public devnet RPC — expect occasional 429s; set KEEPER_RPC_URL to a dedicated RPC to avoid them");
+  }
   const connection = new Connection(RPC_URL, "confirmed");
   const wallet = new Wallet(loadKeypair(KEYPAIR_PATH));
   const provider = new AnchorProvider(connection, wallet, { commitment: "confirmed" });
