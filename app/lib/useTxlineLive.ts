@@ -56,6 +56,36 @@ export function useTxlineLive(fixtureId: bigint): TxlineLive {
   return live;
 }
 
+/** Which already-kicked-off Fixtures the scores feed reports finalised, for the games-list
+ * ENDED badge. Feed-truth only: OPEN/LIVE the caller derives from the clock via marketState().
+ * Polls every 60s (a browse list, not a live ticker); empty when the feed is dark. */
+export function useEndedFixtures(fixtures: Fixture[]): Set<string> {
+  const [ended, setEnded] = useState<Set<string>>(new Set());
+  const startedIds = fixtures
+    .filter((f) => f.kickoff * 1000 <= Date.now())
+    .map((f) => f.fixtureId.toString())
+    .join(",");
+  useEffect(() => {
+    if (!startedIds) {
+      setEnded(new Set());
+      return;
+    }
+    let alive = true;
+    const load = () =>
+      fetch(`/api/txline/states?ids=${startedIds}`)
+        .then((r) => (r.ok ? r.json() : { ended: [] }))
+        .then((d: { ended: string[] }) => alive && setEnded(new Set(d.ended)))
+        .catch(() => {});
+    load();
+    const id = setInterval(load, 60_000);
+    return () => {
+      alive = false;
+      clearInterval(id);
+    };
+  }, [startedIds]);
+  return ended;
+}
+
 /** The Fixture slate for pickers: static demo Fixtures plus any real TxLINE Fixtures
  * (hydrated once per page load; empty response = static only). */
 export function useFixtures(): Fixture[] {

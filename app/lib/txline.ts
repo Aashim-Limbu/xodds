@@ -16,6 +16,24 @@ export interface OddsPayload {
   Ts: number;
 }
 
+/** The games-list badge state for a Fixture. ENDED is feed-truth only (TxLINE's
+ * `action=game_finalised` — the same terminal signal the on-chain settle trusts, docs
+ * §onchain-validation); OPEN/LIVE fall back to the kickoff clock when the feed is dark. */
+export type MarketState = "open" | "live" | "ended";
+
+/** True once the scores feed carries a finalised record (full time / abandoned / pens) —
+ * the only settle-able terminal signal per TxLINE, not a phase code. */
+export function hasFinalised(records: ScoresRecord[]): boolean {
+  return records.some((r) => r.action === "game_finalised");
+}
+
+/** `kickoff` unix seconds, `now` unix ms. ENDED never guessed from the clock — it implies
+ * settle-ability, which only the feed can attest. */
+export function marketState(kickoff: number, now: number, finalised: boolean): MarketState {
+  if (finalised) return "ended";
+  return now >= kickoff * 1000 ? "live" : "open";
+}
+
 /** GET /api/scores/snapshot/{fixtureId} — one record. Partial shape. */
 export interface ScoresRecord {
   action: string;
@@ -137,7 +155,7 @@ const K = { p1g: "1", p2g: "2", p1y: "3", p2y: "4", p1r: "5", p2r: "6", p1c: "7"
 
 // SoccerFixtureStatus (soccer feed docs) → the phase label shown on the live strip.
 const PHASE: Record<number, string> = {
-  1: "Kick-off soon", 2: "First half", 3: "Half-time", 4: "Second half", 5: "Full time",
+  1: "Not started", 2: "First half", 3: "Half-time", 4: "Second half", 5: "Full time",
   6: "Extra time soon", 7: "Extra time", 8: "ET half-time", 9: "Extra time", 10: "Full time (AET)",
   11: "Penalties soon", 12: "Penalties", 13: "Full time (pens)",
   14: "Interrupted", 15: "Abandoned", 16: "Cancelled", 19: "Postponed",
