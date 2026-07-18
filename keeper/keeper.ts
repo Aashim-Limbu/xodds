@@ -38,7 +38,13 @@ export class Keeper {
       (this.program.idl.accounts!.find((a) => a.name === "pool")!).discriminator,
     );
     const raw = await this.program.provider.connection.getProgramAccounts(this.program.programId, {
-      filters: [{ memcmp: { offset: 0, bytes: utils.bytes.bs58.encode(discriminator) } }],
+      // dataSize pins the CURRENT Pool layout so pre-upgrade relics (a shorter struct, same
+      // discriminator) are excluded by the RPC — no per-tick "undecodable" log spam, and a
+      // smaller response. Dynamic (program.account.pool.size) so a future field growth self-adjusts.
+      filters: [
+        { dataSize: this.program.account.pool.size },
+        { memcmp: { offset: 0, bytes: utils.bytes.bs58.encode(discriminator) } },
+      ],
     });
     const pools = [];
     for (const { pubkey, account } of raw) {
