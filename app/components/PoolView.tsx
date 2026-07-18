@@ -59,23 +59,44 @@ export function PoolView({ address }: { address: string }) {
   // Real TxLINE Reference Odds + Feed lines when a token is configured; {} (static fallback) otherwise.
   const live = useTxlineLive(pool?.fixtureId ?? 0n);
 
-  const refresh = useCallback(async () => {
+  // The shared Pool (pot / totals / state) via the cached server route — so N tabs on the same
+  // Pool collapse to one chain read per few seconds instead of N direct RPC polls.
+  const refreshPool = useCallback(async () => {
     if (!client) return;
     try {
-      const p = await client.fetchPool(poolKey);
-      setPool(p);
-      setMyEntries(await Promise.all([0, 1, 2].map((o) => client.fetchEntryAmount(poolKey, o))));
+      setPool(await client.fetchPoolCached(poolKey));
     } catch (e) {
       setError(friendlyError(e));
     }
   }, [client, address]);
 
-  // Poll for "live" pot / totals / state and auto-post Pool-action transitions to the Feed.
+  // Entries are per-User (each wallet reads different PDAs) and only change when THIS User acts,
+  // so read them on mount / after own actions — not on the 4s poll. That keeps the poll to one
+  // shared, cached Pool read instead of 4 direct RPC calls per tab.
+  const refreshEntries = useCallback(async () => {
+    if (!client) return;
+    try {
+      setMyEntries(await Promise.all([0, 1, 2].map((o) => client.fetchEntryAmount(poolKey, o))));
+    } catch {
+      // a transient miss just delays the claim/refund affordance; the next action re-reads
+    }
+  }, [client, address]);
+
+  const refresh = useCallback(async () => {
+    await Promise.all([refreshPool(), refreshEntries()]);
+  }, [refreshPool, refreshEntries]);
+
+  // Poll the shared Pool state and auto-post Pool-action transitions to the Feed.
   useEffect(() => {
-    refresh();
-    const id = setInterval(refresh, 4000);
+    refreshPool();
+    const id = setInterval(refreshPool, 4000);
     return () => clearInterval(id);
-  }, [refresh]);
+  }, [refreshPool]);
+
+  // Load this User's Entries once (and on wallet change); own actions re-read via refresh().
+  useEffect(() => {
+    refreshEntries();
+  }, [refreshEntries]);
 
   useEffect(() => {
     if (!pool) return;
@@ -175,7 +196,7 @@ export function PoolView({ address }: { address: string }) {
           onRematch={rematch}
           error={error}
         />
-        <Feed feed={feed} />
+        <Feed feed={feed} me={displayName} />
       </div>
     );
   }
@@ -349,7 +370,7 @@ export function PoolView({ address }: { address: string }) {
         </div>
       </div>
 
-      <Feed feed={feed} />
+      <Feed feed={feed} me={displayName} />
     </div>
   );
 }

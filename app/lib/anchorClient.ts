@@ -5,6 +5,7 @@ import {
   TOKEN_PROGRAM_ID,
 } from "@solana/spl-token";
 import { Connection, PublicKey, SystemProgram } from "@solana/web3.js";
+import { Buffer } from "buffer";
 import idl from "./idl/finalwhistle.json";
 import type { Finalwhistle } from "./idl/finalwhistle";
 import { RPC_URL, usdcMint } from "./config";
@@ -200,6 +201,34 @@ export class FinalWhistleClient {
 
   async fetchPool(address: PublicKey): Promise<PoolAccount> {
     return this.decode(address, await this.program.account.pool.fetch(address));
+  }
+
+  /** Pool read via the cached server proxy (/api/chain/account) instead of a direct RPC, so N
+   * browser tabs collapse to one cached chain read (avoids per-tab 429s). Browser-only — the
+   * relative fetch has no origin server-side; server code uses fetchPool. */
+  async fetchPoolCached(address: PublicKey): Promise<PoolAccount> {
+    const res = await fetch(`/api/chain/account?key=${address.toBase58()}`);
+    if (!res.ok) throw new Error(`account proxy ${res.status}`);
+    const { data } = (await res.json()) as { data: string | null };
+    if (!data) throw new Error("pool account not found");
+    return this.decode(address, this.program.coder.accounts.decode("pool", Buffer.from(data, "base64")));
+  }
+
+  /** Group's Pools via the cached server proxy (/api/chain/program-accounts). Same defensive
+   * per-account decode as listPools so an Entry or pre-upgrade Pool is skipped, not fatal. */
+  async listPoolsCached(group: PublicKey): Promise<PoolAccount[]> {
+    const res = await fetch(`/api/chain/program-accounts?group=${group.toBase58()}`);
+    if (!res.ok) throw new Error(`accounts proxy ${res.status}`);
+    const rows = (await res.json()) as Array<{ pubkey: string; data: string }>;
+    const pools: PoolAccount[] = [];
+    for (const { pubkey, data } of rows) {
+      try {
+        pools.push(this.decode(new PublicKey(pubkey), this.program.coder.accounts.decode("pool", Buffer.from(data, "base64"))));
+      } catch {
+        // not a current-layout Pool — skip
+      }
+    }
+    return pools;
   }
 
   /** Pools, optionally scoped to a Group (memcmp on the `group` field at offset 8).
