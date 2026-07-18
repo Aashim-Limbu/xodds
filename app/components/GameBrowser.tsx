@@ -3,7 +3,8 @@
 import { useMemo, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
 import { type Fixture } from "@/lib/fixtures";
-import { useFixtures } from "@/lib/useTxlineLive";
+import { marketState } from "@/lib/txline";
+import { useEndedFixtures, useFixtures } from "@/lib/useTxlineLive";
 import { CreatePoolModal } from "./CreatePoolModal";
 
 const DEMO = "Demo";
@@ -17,10 +18,18 @@ function kickoffLabel(kickoff: number): string {
   return `in ${Math.max(1, Math.round(ms / 60_000))}m`;
 }
 
+/** OPEN -> the kickoff countdown; LIVE -> "Live"; ENDED -> "Full time". ENDED is feed-truth
+ * (marketState gates it on the finalised set), so a finished match no longer lies "Kicked off". */
+function gameLabel(f: Fixture, ended: Set<string>): string {
+  const state = marketState(f.kickoff, Date.now(), ended.has(f.fixtureId.toString()));
+  return state === "ended" ? "Full time" : state === "live" ? "Live" : kickoffLabel(f.kickoff);
+}
+
 /** The available-games browser: real TxLINE Fixtures as tappable cards, grouped by
  * competition. Tap a card -> Create Pool modal. Replaces the old select-based panel. */
 export function GameBrowser({ group, onCreated }: { group: PublicKey; onCreated: () => void }) {
   const fixtures = useFixtures();
+  const ended = useEndedFixtures(fixtures);
   const [tab, setTab] = useState<string>("All");
   const [picked, setPicked] = useState<Fixture | null>(null);
 
@@ -63,7 +72,7 @@ export function GameBrowser({ group, onCreated }: { group: PublicKey; onCreated:
             </span>
             <strong className="fixture-teams">{f.home} vs {f.away}</strong>
             <span className="row between" style={{ width: "100%" }}>
-              <span className="label muted">{kickoffLabel(f.kickoff)}</span>
+              <span className="label muted">{gameLabel(f, ended)}</span>
               <span className="label" style={{ color: "var(--green)" }}>+ POOL</span>
             </span>
           </button>

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { finalisedFeedLines, liveScore, normalizeScores, pick1x2Probabilities, pickGoalLines, type OddsPayload, type ScoresRecord } from "../app/lib/txline.js";
+import { finalisedFeedLines, hasFinalised, liveScore, marketState, normalizeScores, pick1x2Probabilities, pickGoalLines, type OddsPayload, type ScoresRecord } from "../app/lib/txline.js";
 
 describe("pick1x2Probabilities", () => {
   const line = (over: Partial<OddsPayload>): OddsPayload => ({
@@ -46,6 +46,28 @@ describe("finalisedFeedLines", () => {
   });
   it("is empty while the match is unfinished", () => {
     expect(finalisedFeedLines([{ action: "in_play", participant1IsHome: true }])).toEqual([]);
+  });
+});
+
+describe("marketState", () => {
+  const KICK = 2_000_000_000; // unix seconds
+  const before = (KICK - 1) * 1000;
+  const after = (KICK + 1) * 1000;
+
+  it("is OPEN before kickoff", () => {
+    expect(marketState(KICK, before, false)).toBe("open");
+  });
+  it("is LIVE after kickoff when not finalised (clock fallback)", () => {
+    expect(marketState(KICK, after, false)).toBe("live");
+  });
+  it("ENDED comes only from the finalised feed, never the clock", () => {
+    expect(marketState(KICK, after, true)).toBe("ended");
+    // Well past kickoff but no finalised signal -> still LIVE, not guessed ENDED.
+    expect(marketState(KICK, after + 6 * 3_600_000, false)).toBe("live");
+  });
+  it("hasFinalised gates on the game_finalised record", () => {
+    expect(hasFinalised([{ action: "in_play", participant1IsHome: true }])).toBe(false);
+    expect(hasFinalised([{ action: "game_finalised", participant1IsHome: true }])).toBe(true);
   });
 });
 
