@@ -36,7 +36,7 @@ export function PoolList({ group, refreshKey }: { group: PublicKey; refreshKey: 
   const load = useCallback(async () => {
     if (!client) return;
     try {
-      setPools(await client.listPools(group));
+      setPools(await client.listPoolsCached(group));
     } finally {
       setLoading(false);
     }
