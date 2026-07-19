@@ -32,3 +32,7 @@ test-ledger/
 # TS incremental build info
 *.tsbuildinfo
 keeper-keypair.json
+
+# local AI-assist / tooling config — kept out of history
+CLAUDE.md
+.superpowers/
