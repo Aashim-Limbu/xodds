@@ -19,26 +19,27 @@ const timeOf = (ts: number) =>
 /** One emoji's tally on a message: who reacted, and whether that includes you. */
 type Tally = { emoji: string; count: number; mine: boolean };
 
-/** Roll every targeted reaction up per message → ordered emoji tallies. Reactions are deduped
- * upstream by a deterministic id, so a Set of authors is exact. */
-function tallyReactions(events: FeedEvent[], me: string): Map<string, Tally[]> {
+/** Roll every targeted reaction up per message → ordered emoji tallies. A reaction's `author` is
+ * the reactor's stable id (wallet), not a display name, so the Set is exact even when two users
+ * share a name; `myId` is this user's same stable id. */
+function tallyReactions(events: FeedEvent[], myId: string): Map<string, Tally[]> {
   const byMsg = new Map<string, Map<string, Set<string>>>();
   for (const e of events) {
     if (e.kind !== "reaction" || !e.target) continue; // skip legacy free-floating reactions
     let emojis = byMsg.get(e.target);
     if (!emojis) byMsg.set(e.target, (emojis = new Map()));
-    let authors = emojis.get(e.text);
-    if (!authors) emojis.set(e.text, (authors = new Set()));
-    authors.add(e.author);
+    let reactors = emojis.get(e.text);
+    if (!reactors) emojis.set(e.text, (reactors = new Set()));
+    reactors.add(e.author);
   }
   const out = new Map<string, Tally[]>();
   for (const [msg, emojis] of byMsg) {
     out.set(
       msg,
-      [...emojis.entries()].map(([emoji, authors]) => ({
+      [...emojis.entries()].map(([emoji, reactors]) => ({
         emoji,
-        count: authors.size,
-        mine: authors.has(me),
+        count: reactors.size,
+        mine: reactors.has(myId),
       })),
     );
   }
@@ -107,13 +108,13 @@ function Reactions({
 
 /** The Group's matchday room: chat bubbles for people (yours right/yellow, theirs left with
  * avatars), reactions clamped onto each message as sticker pills, money events as ticket stubs. */
-export function Feed({ feed, me }: { feed: FeedApi; me: string }) {
+export function Feed({ feed, me, myId }: { feed: FeedApi; me: string; myId: string }) {
   const [draft, setDraft] = useState("");
   const [picker, setPicker] = useState<string | null>(null); // message id with its picker open
   const endRef = useRef<HTMLDivElement | null>(null);
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
-  const reactions = useMemo(() => tallyReactions(feed.events, me), [feed.events, me]);
+  const reactions = useMemo(() => tallyReactions(feed.events, myId), [feed.events, myId]);
   // Count messages + system stubs (both render in the scroll) but not reactions, which pill
   // inline under a message and shouldn't push the view. New line of either → autoscroll.
   const lineCount = feed.events.filter((e) => e.kind !== "reaction").length;

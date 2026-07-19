@@ -46,7 +46,7 @@ export function PoolView({ address }: { address: string }) {
   const [pool, setPool] = useState<PoolAccount | null>(null);
   // Feed is per-Group (CONTEXT.md): every Pool in the Group shares one stream, so system
   // posts carry the Fixture for context. "" until the Pool loads -> hook waits.
-  const feed = useFeed(pool ? `group:${pool.group.toBase58()}` : "", displayName);
+  const feed = useFeed(pool ? `group:${pool.group.toBase58()}` : "", displayName, wallet);
   const [myEntries, setMyEntries] = useState<(bigint | null)[]>([null, null, null]);
   const [amount, setAmount] = useState("5");
   const [busy, setBusy] = useState(false);
@@ -196,7 +196,7 @@ export function PoolView({ address }: { address: string }) {
           onRematch={rematch}
           error={error}
         />
-        <Feed feed={feed} me={displayName} />
+        <Feed feed={feed} me={displayName} myId={wallet ?? displayName} />
       </div>
     );
   }
@@ -370,7 +370,7 @@ export function PoolView({ address }: { address: string }) {
         </div>
       </div>
 
-      <Feed feed={feed} me={displayName} />
+      <Feed feed={feed} me={displayName} myId={wallet ?? displayName} />
     </div>
   );
 }
