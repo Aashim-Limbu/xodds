@@ -7,10 +7,19 @@ import { hasFinalised, normalizeScores } from "@/lib/txline";
 // so there's nothing to ask about. No batch endpoint upstream, so we fan out one snapshot per id.
 const ORIGIN = process.env.TXLINE_ORIGIN ?? "https://txline-dev.txodds.com";
 
+// Reuse one guest JWT across requests instead of minting one per 60s poll per client.
+// ponytail: fixed 10-min TTL, not decoded from the JWT's exp — a re-mint on a 401 would be
+// tighter, add it if guest tokens ever expire sooner.
+let jwtCache: { token: string; ts: number } | null = null;
+const JWT_TTL_MS = 10 * 60 * 1000;
+
 async function guestJwt(): Promise<string> {
+  if (jwtCache && Date.now() - jwtCache.ts < JWT_TTL_MS) return jwtCache.token;
   const res = await fetch(`${ORIGIN}/auth/guest/start`, { method: "POST" });
   if (!res.ok) throw new Error(`guest auth ${res.status}`);
-  return ((await res.json()) as { token: string }).token;
+  const token = ((await res.json()) as { token: string }).token;
+  jwtCache = { token, ts: Date.now() };
+  return token;
 }
 
 export async function GET(req: Request): Promise<Response> {

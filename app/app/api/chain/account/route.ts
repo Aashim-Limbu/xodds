@@ -26,6 +26,11 @@ async function read(key: string): Promise<string | null> {
 export async function GET(req: Request): Promise<Response> {
   const key = new URL(req.url).searchParams.get("key");
   if (!key) return NextResponse.json({ error: "missing key" }, { status: 400 });
+  try {
+    new PublicKey(key); // reject junk before it reaches the RPC (and before it grows the cache)
+  } catch {
+    return NextResponse.json({ error: "bad key" }, { status: 400 });
+  }
 
   const now = Date.now();
   const hit = cache.get(key);
