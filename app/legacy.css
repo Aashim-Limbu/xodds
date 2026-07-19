@@ -1563,3 +1563,10 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 .market-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
 .market-title { font-family: var(--display); font-size: 16px; font-weight: 800; text-transform: uppercase; margin: 0; }
 .market-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
+
+.match-results { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.match-results li {
+  display: grid; grid-template-columns: 1fr auto auto; gap: 12px; align-items: baseline;
+  font-size: 13px; padding-bottom: 6px; border-bottom: 1px dashed rgba(31, 27, 16, 0.25);
+}
+.match-results li:last-child { border-bottom: 0; padding-bottom: 0; }

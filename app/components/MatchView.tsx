@@ -15,6 +15,7 @@ import { useFixtures } from "@/lib/useTxlineLive";
 import { useMyName } from "@/lib/useMyName";
 import { MatchBanner } from "./MatchBanner";
 import { MarketSection, type BackTarget } from "./MarketSection";
+import { MatchReceipt } from "./MatchReceipt";
 import { Feed } from "./Feed";
 
 export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: bigint }) {
@@ -122,6 +123,8 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
         />
 
         {error && <p className="error" role="alert">{error}</p>}
+
+        {match && <MatchReceipt match={match} />}
 
         <div className="panel stack">
           {MARKETS.flatMap((spec) => {
