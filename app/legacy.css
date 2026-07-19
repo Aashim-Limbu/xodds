@@ -1026,6 +1026,14 @@ button.ptype-btn.active:hover { background: var(--yellow); }
   border-radius: 9px 9px 0 0;
 }
 .chat-header h2 { color: var(--yellow); margin: 0; }
+.chat-title { display: flex; align-items: center; gap: 8px; }
+/* Live pulse: room is connected (green) vs connecting (amber). Shape+pulse carry state too. */
+.chat-live { width: 9px; height: 9px; border-radius: 999px; background: var(--yellow-deep); box-shadow: 0 0 0 2px var(--ink); }
+.chat-live[data-on="true"] { background: #2fd06a; }
+@media (prefers-reduced-motion: no-preference) {
+  .chat-live[data-on="true"] { animation: chat-live-pulse 1.6s ease-in-out infinite; }
+}
+@keyframes chat-live-pulse { 0%, 100% { opacity: 1; } 50% { opacity: 0.35; } }
 .chat-presence { font-family: var(--mono); font-size: 11px; font-weight: 700; color: #fff; }
 .feed-scroll { max-height: 380px; overflow-y: auto; gap: 8px; padding-right: 4px; }
 .feed-msg, .feed-reaction {
@@ -1039,7 +1047,182 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 }
 .feed-msg strong, .feed-reaction strong { color: var(--blue); display: block; font-size: 12px; }
 .feed-system { font-family: var(--mono); font-size: 12px; font-weight: 600; color: var(--muted); padding: 2px 0; }
-.reaction-btn { padding: 9px 12px; font-size: 16px; } /* ≥40px touch target */
+
+/* ---- The Room (Activity redesign): bubbles for people, ticket stubs for money ---- */
+.room {
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 18px;
+  margin-bottom: 20px;
+  display: flex;
+  flex-direction: column;
+}
+.room .chat-header { flex: 0 0 auto; }
+.room-presence-avatars { display: inline-flex; margin-right: 8px; vertical-align: middle; }
+.room-presence-dot {
+  display: inline-grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -6px;
+  background: var(--yellow);
+  color: var(--ink);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 11px;
+}
+.room-presence-dot:first-child { margin-left: 0; }
+.room-scroll {
+  flex: 1;
+  min-height: 320px;
+  max-height: min(56vh, 620px);
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  padding: 4px 6px 4px 2px;
+}
+.room-empty { text-align: center; padding: 48px 16px; color: var(--muted); }
+.room-empty .sticker { font-size: 44px; display: block; margin-bottom: 8px; }
+.room-empty p { max-width: 380px; margin: 0 auto; }
+
+/* A speaker turn: avatar + column of bubbles. Mine hug the right in yellow. */
+.turn { display: flex; gap: 10px; align-items: flex-end; }
+.turn.mine { justify-content: flex-end; }
+.turn-avatar { width: 30px; height: 30px; font-size: 14px; flex: 0 0 auto; }
+/* Runs keep the avatar's width so bubbles stay in one column, but hide the glyph. */
+.turn-avatar.hidden { visibility: hidden; }
+.bubble-col { display: flex; flex-direction: column; gap: 3px; max-width: 78%; min-width: 0; }
+.turn.mine .bubble-col { align-items: flex-end; }
+.bubble-meta { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); }
+.bubble-time { font-weight: 400; opacity: 0.7; margin-left: 4px; }
+.bubble {
+  background: var(--cream-2);
+  border: 2px solid var(--ink);
+  border-radius: var(--r-sm);
+  border-bottom-left-radius: 2px;
+  padding: 8px 12px;
+  font-size: 14px;
+  width: fit-content;
+  overflow-wrap: anywhere;
+}
+.turn.mine .bubble {
+  background: var(--yellow);
+  border-bottom-left-radius: var(--r-sm);
+  border-bottom-right-radius: 2px;
+  box-shadow: 2px 2px 0 0 var(--ink);
+}
+
+/* Money moments as stamped ticket stubs — centred landmarks in the conversation. */
+.stub {
+  align-self: center;
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  max-width: 92%;
+  background: var(--tint-settled);
+  border: 2px dashed var(--ink);
+  border-radius: 4px;
+  padding: 6px 14px;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+}
+.stub-stake { background: var(--tint-open); }
+.stub-win { background: var(--yellow); transform: rotate(-0.6deg); box-shadow: 2px 2px 0 0 var(--ink); border-style: solid; }
+.stub-time { font-weight: 400; font-size: 10px; color: var(--muted); white-space: nowrap; }
+
+/* Reactions clamp onto a message: sticker pills + a peel-out "＋" picker, under the bubble. */
+.react-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+.react-row.mine { justify-content: flex-end; }
+/* Runs align pills under the bubble body, not under where the avatar would be. */
+.turn:not(.mine) .react-row { padding-left: 2px; }
+
+.react-pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 1px 8px 1px 6px;
+  min-height: 24px;
+  background: var(--paper);
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 1px 1px 0 0 var(--ink);
+  font-family: var(--mono);
+  font-size: 13px;
+}
+.react-pill:hover { transform: translate(1px, 1px); box-shadow: 0 0 0 0 var(--ink); }
+.react-pill.mine { background: var(--yellow); }
+.react-count { font-weight: 800; font-size: 11px; }
+
+.react-add-wrap { position: relative; display: inline-flex; }
+/* The ＋ affordance stays quiet until you hover/focus the turn, but is always reachable on touch. */
+.react-add {
+  display: inline-grid;
+  place-items: center;
+  width: 24px;
+  height: 24px;
+  padding: 0;
+  background: var(--paper);
+  border: 2px dashed var(--muted);
+  border-radius: 999px;
+  box-shadow: none;
+  color: var(--muted);
+  opacity: 0;
+  transition: opacity 120ms var(--ease-out);
+}
+.react-add .msym { font-size: 15px; }
+.turn:hover .react-add,
+.turn:focus-within .react-add,
+.react-add[aria-expanded="true"] { opacity: 1; }
+.react-add:hover { transform: none; border-color: var(--ink); color: var(--ink); box-shadow: none; }
+@media (hover: none) { .react-add { opacity: 1; } }
+
+.react-picker {
+  position: absolute;
+  bottom: calc(100% + 6px);
+  left: 0;
+  z-index: 20;
+  display: flex;
+  gap: 2px;
+  padding: 4px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: var(--shadow-sm);
+}
+.turn.mine .react-picker { left: auto; right: 0; }
+.react-pick {
+  width: 34px;
+  height: 34px;
+  padding: 0;
+  font-size: 18px;
+  background: transparent;
+  border: none;
+  border-radius: 999px;
+  box-shadow: none;
+}
+.react-pick:hover { background: var(--cream-2); transform: scale(1.15); box-shadow: none; }
+
+.room-composer { flex: 0 0 auto; display: flex; gap: 10px; margin-top: 12px; align-items: stretch; }
+.composer-input { flex: 1; }
+.composer-send { flex: 0 0 auto; }
+
+@media (prefers-reduced-motion: no-preference) {
+  .bubble, .stub, .react-pill {
+    transition: transform 150ms var(--ease-out), opacity 150ms var(--ease-out);
+  }
+  @starting-style {
+    .bubble { opacity: 0; transform: translateY(4px); }
+    .react-pill { opacity: 0; transform: scale(0.8); }
+    .stub { opacity: 0; transform: translateY(4px) scale(0.98); }
+  }
+}
 
 /* ---- Invite modal ("Rally the Squad", from the Stitch component) ---- */
 .modal-overlay {

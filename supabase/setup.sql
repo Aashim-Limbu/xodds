@@ -8,8 +8,10 @@ create table if not exists feed_events (
   kind text not null,
   author text not null default '',
   text text not null,
-  ts bigint not null
+  ts bigint not null,
+  target text        -- reaction only: id of the message it's clamped onto
 );
+alter table feed_events add column if not exists target text; -- migrate pre-reactions databases
 create index if not exists feed_events_channel_ts on feed_events (channel, ts desc);
 alter table feed_events enable row level security;
 drop policy if exists "feed is public" on feed_events;
