@@ -1,8 +1,8 @@
 "use client";
 
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { PublicKey } from "@solana/web3.js";
-import type { PoolAccount, PoolTypeName } from "@/lib/anchorClient";
+import type { PoolAccount } from "@/lib/anchorClient";
 import { poolKickoffTs } from "@/lib/config";
 import { friendlyError } from "@/lib/errors";
 import { useFeed } from "@/lib/feed";
@@ -14,7 +14,7 @@ import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { useFixtures } from "@/lib/useTxlineLive";
 import { useMyName } from "@/lib/useMyName";
 import { MatchBanner } from "./MatchBanner";
-import { MarketSection } from "./MarketSection";
+import { MarketSection, type BackTarget } from "./MarketSection";
 import { Feed } from "./Feed";
 
 export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: bigint }) {
@@ -25,54 +25,73 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
   // One Room for the whole Match — not one per market.
   const feed = useFeed(`fixture:${group.toBase58()}:${fixtureId.toString()}`, displayName, wallet);
   const [pools, setPools] = useState<PoolAccount[]>([]);
-  const [stake, setStake] = useState(5_000_000n);
+  const stake = 5_000_000n; // ponytail: fixed stake until a stake picker exists
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const backInFlight = useRef(false);
 
   // My stake per (pool address -> outcome -> amount), so "You're in $X" survives across markets.
   // Failures resolve to empty rather than breaking the page.
   const [myEntries, setMyEntries] = useState<Record<string, Record<number, bigint | undefined>>>({});
 
-  const load = useCallback(async () => {
-    if (!client) return;
-    const all = await client.listPools(group);
-    const mine = all.filter((p) => p.fixtureId === fixtureId);
-    setPools(mine);
-    const entries: Record<string, Record<number, bigint | undefined>> = {};
-    await Promise.all(
-      mine.map(async (p) => {
-        const outcomes = p.poolType === "matchWinner" ? [0, 1, 2] : [0, 1];
-        const found: Record<number, bigint | undefined> = {};
-        await Promise.all(
-          outcomes.map(async (o) => {
-            found[o] = (await client.fetchEntryAmount(p.address, o).catch(() => null)) ?? undefined;
-          }),
-        );
-        entries[p.address.toBase58()] = found;
-      }),
-    );
-    setMyEntries(entries);
-  }, [client, group, fixtureId]);
+  const load = useCallback(
+    async (ignore?: { current: boolean }) => {
+      if (!client) return;
+      const all = await client.listPools(group);
+      if (ignore?.current) return;
+      const mine = all.filter((p) => p.fixtureId === fixtureId);
+      setPools(mine);
+      const entries: Record<string, Record<number, bigint | undefined>> = {};
+      await Promise.all(
+        mine.map(async (p) => {
+          const outcomes = p.poolType === "matchWinner" ? [0, 1, 2] : [0, 1];
+          const found: Record<number, bigint | undefined> = {};
+          await Promise.all(
+            outcomes.map(async (o) => {
+              found[o] = (await client.fetchEntryAmount(p.address, o).catch(() => null)) ?? undefined;
+            }),
+          );
+          entries[p.address.toBase58()] = found;
+        }),
+      );
+      if (ignore?.current) return;
+      setMyEntries(entries);
+    },
+    [client, group, fixtureId],
+  );
 
   useEffect(() => {
-    void load();
+    const ignore = { current: false };
+    void load(ignore);
+    return () => {
+      ignore.current = true;
+    };
   }, [load]);
 
   const fixture = fixtureById(fixtureId);
   const match = groupByFixture(pools)[0];
 
-  async function back(poolType: PoolTypeName, lineX2: number, outcome: number) {
+  async function back(target: BackTarget, outcome: number) {
     if (!client || !fixture) return;
+    if (backInFlight.current) return;
+    backInFlight.current = true;
     setBusy(true);
     setError(null);
     let opened = false;
     try {
-      const { pool, created } = await findOrOpenPool({
-        client, group, fixture, poolType, lineX2,
-        kickoffTs: poolKickoffTs(fixture.kickoff), getAccessToken,
-      });
-      opened = created;
-      await client.placeEntry(pool, outcome, stake);
+      if (target.pool) {
+        // This section already has a Pool — stake straight into it. Re-deriving via
+        // findOrOpenPool's (poolType, lineX2) match would risk picking a DIFFERENT Pool
+        // that happens to share that shape (line isn't part of the PDA seeds).
+        await client.placeEntry(target.pool, outcome, stake);
+      } else {
+        const { pool, created } = await findOrOpenPool({
+          client, group, fixture, poolType: target.poolType, lineX2: target.lineX2,
+          kickoffTs: poolKickoffTs(fixture.kickoff), getAccessToken,
+        });
+        opened = created;
+        await client.placeEntry(pool, outcome, stake);
+      }
       await load();
     } catch (e) {
       // If the market opened but the stake failed, the user has NOT been charged. Say so
@@ -85,6 +104,7 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
       if (opened) await load();
     } finally {
       setBusy(false);
+      backInFlight.current = false;
     }
   }
 

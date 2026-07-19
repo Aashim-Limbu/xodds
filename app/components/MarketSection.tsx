@@ -1,8 +1,15 @@
 "use client";
 
+import type { PublicKey } from "@solana/web3.js";
 import type { PoolAccount, PoolTypeName } from "@/lib/anchorClient";
 import { formatUsdc } from "@/lib/format";
 import { marketLabel, type MarketSpec } from "@/lib/markets";
+
+/** Identifies which Pool a Back click targets — the address (if this section already has one)
+ * plus the market shape needed to open a Pool when it doesn't. Carrying the address is the
+ * whole fix: two Pools can share (poolType, lineX2), so matching on those alone can route a
+ * stake to the wrong one. */
+export type BackTarget = { pool: PublicKey | null; poolType: PoolTypeName; lineX2: number };
 
 /**
  * One market on a Match. An unopened market is a first-class state, not an absence: the
@@ -19,7 +26,7 @@ export function MarketSection({
   myEntries: Record<number, bigint | undefined>;
   stake: bigint;
   busy: boolean;
-  onBack: (poolType: PoolTypeName, lineX2: number, outcome: number) => Promise<void>;
+  onBack: (target: BackTarget, outcome: number) => Promise<void>;
 }) {
   const open = pool === null || pool.state === "open";
   const headingId = `mkt-${spec.poolType}-${lineX2}`;
@@ -49,7 +56,10 @@ export function MarketSection({
               <span className={`mine-tag${mine ? "" : " empty"}`}>
                 {mine ? `You're in $${formatUsdc(mine)}` : "Not in yet"}
               </span>
-              <button disabled={busy || !open} onClick={() => onBack(spec.poolType, lineX2, o)}>
+              <button
+                disabled={busy || !open}
+                onClick={() => onBack({ pool: pool?.address ?? null, poolType: spec.poolType, lineX2 }, o)}
+              >
                 Back ${formatUsdc(stake)}
               </button>
             </div>

@@ -17,14 +17,23 @@ export default function MatchPage({
   const router = useRouter();
   const goHome = (t: string) => router.push(`/?tab=${t}`);
 
+  let parsed: { group: PublicKey; fixtureId: bigint } | null = null;
+  try {
+    parsed = { group: new PublicKey(group), fixtureId: BigInt(fixture) };
+  } catch {
+    parsed = null;
+  }
+
   return (
     <>
       <NavBar onTab={goHome} />
       <div className="container">
-        {!authenticated || !client ? (
+        {!parsed ? (
+          <div className="panel muted">Match not found.</div>
+        ) : !authenticated || !client ? (
           <div className="panel muted">Sign in to view this Match.</div>
         ) : (
-          <MatchView group={new PublicKey(group)} fixtureId={BigInt(fixture)} />
+          <MatchView group={parsed.group} fixtureId={parsed.fixtureId} />
         )}
       </div>
       <BottomNav onTab={goHome} />
