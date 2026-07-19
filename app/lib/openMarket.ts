@@ -25,7 +25,13 @@ export interface OpenDeps {
 
 /** Anchor's error when the PDA we tried to allocate already exists — i.e. we lost the race. */
 function isAlreadyInUse(e: unknown): boolean {
-  return e instanceof Error && /already in use/i.test(e.message);
+  if (!(e instanceof Error)) return false;
+  const logs = (e as { logs?: string[] }).logs ?? [];
+  return /already in use/i.test(`${e.message} ${logs.join(" ")}`);
+}
+
+function sleep(ms: number): Promise<void> {
+  return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
 function match(p: PoolAccount, d: OpenDeps): boolean {
@@ -58,8 +64,19 @@ export async function findOrOpenPool(d: OpenDeps): Promise<{ pool: PublicKey; cr
     );
   } catch (e) {
     if (!isAlreadyInUse(e)) throw e;
-    const winner = (await d.client.listPools(d.group)).find((p) => match(p, d));
-    if (!winner) throw e; // lost the race to something we still can't see — surface it
+    // The create failed atomically, so nothing was charged. Give the RPC a slot to catch up —
+    // an immediate re-read often misses a Pool that just confirmed — before giving up.
+    let winner = (await d.client.listPools(d.group)).find((p) => match(p, d));
+    if (!winner) {
+      await sleep(400);
+      winner = (await d.client.listPools(d.group)).find((p) => match(p, d));
+    }
+    if (!winner) {
+      throw new Error(
+        "Couldn't open this market — no money was taken. Please try again.",
+        { cause: e },
+      );
+    }
     return { pool: winner.address, created: false };
   }
 

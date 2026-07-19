@@ -88,4 +88,51 @@ describe("findOrOpenPool", () => {
     });
     await expect(findOrOpenPool(d)).rejects.toThrow("insufficient funds");
   });
+
+  it("does not join a Pool from a different group", async () => {
+    const d = deps({
+      client: {
+        listPools: vi.fn().mockResolvedValue([poolRow({ group: PublicKey.unique() })]),
+        freeNonce: vi.fn().mockResolvedValue(0n),
+        createPool: vi.fn().mockResolvedValue(PublicKey.unique()),
+      },
+    });
+    const out = await findOrOpenPool(d);
+    expect(out.created).toBe(true);
+  });
+
+  it("does not join a Pool on a different fixture", async () => {
+    const d = deps({
+      client: {
+        listPools: vi.fn().mockResolvedValue([poolRow({ fixtureId: 999n })]),
+        freeNonce: vi.fn().mockResolvedValue(0n),
+        createPool: vi.fn().mockResolvedValue(PublicKey.unique()),
+      },
+    });
+    const out = await findOrOpenPool(d);
+    expect(out.created).toBe(true);
+  });
+
+  it("does not join a Pool of a different pool type", async () => {
+    const d = deps({
+      client: {
+        listPools: vi.fn().mockResolvedValue([poolRow({ poolType: "totalCorners" })]),
+        freeNonce: vi.fn().mockResolvedValue(0n),
+        createPool: vi.fn().mockResolvedValue(PublicKey.unique()),
+      },
+    });
+    const out = await findOrOpenPool(d);
+    expect(out.created).toBe(true);
+  });
+
+  it("throws a no-money-taken error when both re-scans find nothing after a race-shaped failure", async () => {
+    const d = deps({
+      client: {
+        listPools: vi.fn().mockResolvedValue([]), // every scan comes up empty
+        freeNonce: vi.fn().mockResolvedValue(0n),
+        createPool: vi.fn().mockRejectedValue(new Error("Allocate: account Address { .. } already in use")),
+      },
+    });
+    await expect(findOrOpenPool(d)).rejects.toThrow(/no money was taken/i);
+  });
 });
