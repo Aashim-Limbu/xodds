@@ -114,16 +114,17 @@ export function Feed({ feed, me }: { feed: FeedApi; me: string }) {
   const scrollRef = useRef<HTMLDivElement | null>(null);
 
   const reactions = useMemo(() => tallyReactions(feed.events, me), [feed.events, me]);
-  // Only messages carry reactions in the scroll below; recompute count so new pills don't scroll.
-  const msgCount = feed.events.filter((e) => e.kind === "message").length;
+  // Count messages + system stubs (both render in the scroll) but not reactions, which pill
+  // inline under a message and shouldn't push the view. New line of either → autoscroll.
+  const lineCount = feed.events.filter((e) => e.kind !== "reaction").length;
 
-  // Stick to the bottom on new messages, but not when the user has scrolled up to read history.
+  // Stick to the bottom on a new line, but not when the user has scrolled up to read history.
   useEffect(() => {
     const el = scrollRef.current;
     if (!el) return;
     const nearBottom = el.scrollHeight - el.scrollTop - el.clientHeight < 120;
     if (nearBottom) endRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [msgCount]);
+  }, [lineCount]);
 
   // Close an open picker on outside click.
   useEffect(() => {
