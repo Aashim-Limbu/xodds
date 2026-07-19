@@ -1547,3 +1547,12 @@ button.ptype-btn.active:hover { background: var(--yellow); }
   .player-stat.skeleton { animation: profile-skeleton 1.2s ease-in-out infinite; }
   @keyframes profile-skeleton { 50% { opacity: 0.5; } }
 }
+
+/* A Match card lists its markets, so the fan sees the whole match, not one question. */
+.match-markets { list-style: none; margin: 10px 0 0; padding: 0; display: flex; flex-direction: column; gap: 4px; }
+.match-markets li {
+  display: flex; justify-content: space-between; gap: 10px;
+  font-size: 12px; font-weight: 700;
+  padding-top: 4px; border-top: 1px dashed rgba(31, 27, 16, 0.25);
+}
+.pc-teams { display: block; min-width: 0; overflow-wrap: anywhere; }

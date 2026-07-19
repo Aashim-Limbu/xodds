@@ -1,27 +1,12 @@
 "use client";
 
 import { useCallback, useEffect, useState } from "react";
-import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { PublicKey } from "@solana/web3.js";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
-import type { PoolAccount, PoolState } from "@/lib/anchorClient";
-import { fixtureById, poolTypeLabel } from "@/lib/fixtures";
-import { formatUsdc } from "@/lib/format";
-import { Avatars, fakeParticipants } from "./Avatars";
-
-const CHIP_LABEL: Record<PoolState, string> = {
-  open: "OPEN",
-  locked: "LOCKED",
-  settled: "SETTLED",
-  void: "VOID",
-};
-
-// A Material Symbol per fixture, keyed off fixtureId so it's stable. Decorative.
-const ICONS = ["sports_soccer", "sports_motorsports", "sports_basketball", "emoji_events"];
-
-function maxBig(xs: bigint[]): bigint {
-  return xs.reduce((m, x) => (x > m ? x : m), 0n);
-}
+import type { PoolAccount } from "@/lib/anchorClient";
+import { groupByFixture, type Match } from "@/lib/markets";
+import { MatchCard } from "./MatchCard";
 
 type Filter = "all" | "open" | "settled";
 
@@ -30,7 +15,9 @@ export function PoolList({ group, refreshKey }: { group: PublicKey; refreshKey: 
   const { client } = useFinalWhistle();
   const [pools, setPools] = useState<PoolAccount[]>([]);
   const [loading, setLoading] = useState(true);
-  const [filter, setFilter] = useState<Filter>("all");
+  // Open Pools are the only ones you can still act on — landing on ALL buries them under
+  // every void and settled Pool the Group has ever had.
+  const [filter, setFilter] = useState<Filter>("open");
   const groupKey = group.toBase58();
 
   const load = useCallback(async () => {
@@ -47,9 +34,15 @@ export function PoolList({ group, refreshKey }: { group: PublicKey; refreshKey: 
     load();
   }, [load, refreshKey]);
 
-  const shown = pools.filter((p) =>
-    filter === "all" ? true : filter === "open" ? p.state === "open" : p.state === "settled",
+  const router = useRouter();
+  const matches = groupByFixture(pools);
+  const shown = matches.filter((m) =>
+    filter === "all" ? true : filter === "open" ? m.state === "open" : m.state === "settled",
   );
+
+  function openMatch(m: Match) {
+    router.push(`/match/${m.group.toBase58()}/${m.fixtureId.toString()}`);
+  }
 
   return (
     <>
@@ -75,57 +68,22 @@ export function PoolList({ group, refreshKey }: { group: PublicKey; refreshKey: 
       ) : shown.length === 0 ? (
         <div className="panel muted" style={{ textAlign: "center" }}>
           No {filter} Pools right now.
+          {/* The default filter hides Pools, so the way back has to be right here — otherwise
+              a Group with only settled Pools looks empty. */}
+          {filter !== "all" && (
+            <>
+              {" "}
+              <button className="link-btn" onClick={() => setFilter("all")}>
+                Show all {matches.length}
+              </button>
+            </>
+          )}
         </div>
       ) : (
         <div className="pool-grid">
-          {shown.map((p) => {
-            const f = fixtureById(p.fixtureId);
-            const seed = p.address.toBase58();
-            const parts = fakeParticipants(seed, p.pot);
-            const open = p.state === "open";
-            return (
-              <Link key={seed} href={`/pool/${seed}`} className="card-link">
-                <div className={`panel pool-card is-${p.state}`}>
-                  <div className="pc-body">
-                    <div className="pc-head">
-                      <div className="row" style={{ gap: 12, minWidth: 0 }}>
-                        <span className={`pc-icon sport-${Number(p.fixtureId % 4n)}`} aria-hidden="true">
-                          <span className="msym">{ICONS[Number(p.fixtureId % 4n)]}</span>
-                        </span>
-                        <div style={{ minWidth: 0 }}>
-                          <div className="pc-title">
-                            {f ? `${f.home} vs ${f.away}` : `Fixture ${p.fixtureId}`}
-                          </div>
-                          <div className="pc-sub">{poolTypeLabel(p.poolType, p.lineX2)}</div>
-                        </div>
-                      </div>
-                      <span className={`pc-chip is-${p.state}`}>{CHIP_LABEL[p.state]}</span>
-                    </div>
-
-                    <div className="pc-cells">
-                      <div className="pc-cell">
-                        <span className="label">Total pot</span>
-                        <span className="num">${formatUsdc(p.pot)}</span>
-                      </div>
-                      <div className="pc-cell">
-                        <span className="label">Top side</span>
-                        <span className="num">${formatUsdc(maxBig(p.outcomeTotals))}</span>
-                      </div>
-                    </div>
-
-                    <div className="pc-parts">
-                      <span className="label">Participants</span>
-                      <Avatars seed={seed} count={parts} />
-                    </div>
-                  </div>
-
-                  <span className={`pc-action ${open ? "join" : "view"}`}>
-                    {open ? "Join pool" : "View pool"}
-                  </span>
-                </div>
-              </Link>
-            );
-          })}
+          {shown.map((m) => (
+            <MatchCard key={m.fixtureId.toString()} match={m} onOpen={openMatch} />
+          ))}
         </div>
       )}
     </>
