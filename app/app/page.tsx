@@ -54,7 +54,7 @@ export default function Home() {
   // The per-Group Feed (CONTEXT.md), mounted on the Group home; Pool pages join the same channel.
   const { name: displayName, saveName, needsOnboarding } = useMyName();
   const groupChannel = useMemo(() => `group:${groupPubkey(activeId).toBase58()}`, [activeId]);
-  const feed = useFeed(authenticated ? groupChannel : "", displayName);
+  const feed = useFeed(authenticated ? groupChannel : "", displayName, wallet);
 
   // Load cached Groups and remember a pending invite link (?join=<id>&name=<name>);
   // the actual server join happens once the wallet is ready below.
@@ -349,7 +349,7 @@ export default function Home() {
             </div>
           </>
         )}
-        {tab === "activity" && <Feed feed={feed} me={displayName} />}
+        {tab === "activity" && <Feed feed={feed} me={displayName} myId={wallet ?? displayName} />}
         {tab === "profile" && (
           <Profile
             email={email}

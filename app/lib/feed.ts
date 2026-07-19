@@ -47,7 +47,12 @@ export interface FeedApi {
  * one social surface spanning all the Group's Pools, mounted on both the Group home and
  * every Pool page. Pass "" to render a disabled placeholder until the key is known.
  */
-export function useFeed(channelKey: string, displayName: string): FeedApi {
+/**
+ * @param identity a stable per-user id (the wallet address) used to dedupe reactions — display
+ * names aren't unique, so two "anon"s must still count as two reactors. Falls back to the
+ * display name when absent.
+ */
+export function useFeed(channelKey: string, displayName: string, identity?: string): FeedApi {
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [present, setPresent] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
@@ -142,13 +147,15 @@ export function useFeed(channelKey: string, displayName: string): FeedApi {
 
   const sendReaction = useCallback(
     (emoji: string, target: string) => {
-      const author = displayName || "anon";
-      // Deterministic id → ON CONFLICT DO NOTHING dedupes one reaction per (message, emoji, you)
-      // across reloads and clients. ponytail: no toggle-off — un-reacting needs a DELETE path +
-      // RLS delete policy; add that if users ask to remove reactions.
-      broadcast({ id: `r:${target}:${emoji}:${author}`, kind: "reaction", author, text: emoji, ts: Date.now(), target });
+      // Reactions render as anonymous count pills, so `author` carries the stable identity (the
+      // wallet), not a display name — that's what makes the dedupe exact when two users share a
+      // name. Deterministic id → ON CONFLICT DO NOTHING dedupes one reaction per (message, emoji,
+      // you) across reloads and clients. ponytail: no toggle-off — un-reacting needs a DELETE path
+      // + RLS delete policy; add that if users ask to remove reactions.
+      const who = identity || displayName || "anon";
+      broadcast({ id: `r:${target}:${emoji}:${who}`, kind: "reaction", author: who, text: emoji, ts: Date.now(), target });
     },
-    [broadcast, displayName],
+    [broadcast, identity, displayName],
   );
 
   const postSystem = useCallback(
