@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import type { PublicKey } from "@solana/web3.js";
 import type { PoolAccount, PoolTypeName } from "@/lib/anchorClient";
 import { formatUsdc } from "@/lib/format";
@@ -17,18 +18,24 @@ export type BackTarget = { pool: PublicKey | null; poolType: PoolTypeName; lineX
  * rather than hiding the market entirely.
  */
 export function MarketSection({
-  spec, lineX2, pool, labels, myEntries, stake, busy, onBack,
+  spec, lineX2, pool, labels, myEntries, stake, busy, canOpen, onBack,
 }: {
   spec: MarketSpec;
   lineX2: number;
   pool: PoolAccount | null;
+  /** Whether the FIXTURE is still pre-kickoff. Gates unopened markets only — a Pool that
+   * exists on-chain is governed by its own `state`, which the program owns. */
+  canOpen: boolean;
   labels: string[];
   myEntries: Record<number, bigint | undefined>;
   stake: bigint;
   busy: boolean;
   onBack: (target: BackTarget, outcome: number) => Promise<void>;
 }) {
-  const open = pool === null || pool.state === "open";
+  // An unopened market would otherwise be permanently "open": creating a Pool now would stamp a
+  // kickoff ~90s out on a match whose result is already partly known. Gate it on the fixture.
+  const open = pool === null ? canOpen : pool.state === "open";
+  const terminal = pool !== null && (pool.state === "settled" || pool.state === "void");
   const headingId = `mkt-${spec.poolType}-${lineX2}`;
 
   return (
@@ -38,6 +45,13 @@ export function MarketSection({
           {marketLabel(spec.poolType, lineX2)}
         </h3>
         <span className="badge">{pool ? `$${formatUsdc(pool.pot)} pot` : "not opened yet"}</span>
+        {pool && (
+          // The claim UI lives on the Pool page — without this link a winner has no route to
+          // their money, since nothing else in the app points at /pool/<address>.
+          <Link className="market-link" href={`/pool/${pool.address.toBase58()}`}>
+            {terminal ? "View result & claim ↗" : "Open market ↗"}
+          </Link>
+        )}
       </div>
 
       {!spec.hasOdds && (
@@ -48,13 +62,13 @@ export function MarketSection({
 
       <div className="outcome-grid">
         {labels.map((label, o) => {
-          const mine = myEntries[o];
+          const mine = (myEntries[o] ?? 0n) > 0n;
           return (
             <div key={o} className={`outcome${mine ? " mine" : ""}`}>
               <span className="outcome-label">{label}</span>
               {pool && <span className="odds">${formatUsdc(pool.outcomeTotals[o] ?? 0n)}</span>}
               <span className={`mine-tag${mine ? "" : " empty"}`}>
-                {mine ? `You're in $${formatUsdc(mine)}` : "Not in yet"}
+                {mine ? `You're in $${formatUsdc(myEntries[o] ?? 0n)}` : "Not in yet"}
               </span>
               <button
                 disabled={busy || !open}
@@ -68,7 +82,11 @@ export function MarketSection({
       </div>
 
       {pool === null && (
-        <p className="market-note">Nobody has opened this market yet — back it to start it.</p>
+        <p className="market-note">
+          {canOpen
+            ? "Nobody has opened this market yet — back it to start it."
+            : "Kicked off — market closed. This market was never opened, so it can't be backed."}
+        </p>
       )}
     </section>
   );

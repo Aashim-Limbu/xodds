@@ -11,6 +11,7 @@ import { formatUsdc } from "@/lib/format";
 import { MARKETS, groupByFixture } from "@/lib/markets";
 import { findOrOpenPool } from "@/lib/openMarket";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
+import { marketState } from "@/lib/txline";
 import { useFixtures } from "@/lib/useTxlineLive";
 import { useMyName } from "@/lib/useMyName";
 import { MatchBanner } from "./MatchBanner";
@@ -70,6 +71,10 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
   }, [load]);
 
   const fixture = fixtureById(fixtureId);
+  // A market with no Pool yet may only be opened before kickoff — otherwise a new Pool would be
+  // stamped with a kickoff seconds from now on a match whose result is already known.
+  // `ended` is subsumed: an ended fixture has necessarily kicked off.
+  const canOpen = fixture ? marketState(fixture.kickoff, Date.now(), false) === "open" : false;
   const match = groupByFixture(pools)[0];
 
   async function back(target: BackTarget, outcome: number) {
@@ -95,11 +100,11 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
       }
       await load();
     } catch (e) {
-      // If the market opened but the stake failed, the user has NOT been charged. Say so
-      // plainly — the dangerous outcome is someone believing they hold a bet they don't.
+      // `placeEntry` can throw on a confirmation timeout for a transaction that DID land, so we
+      // must not promise the money wasn't taken. Point at the pot, which is the actual evidence.
       setError(
         opened
-          ? `Market opened, but your $${formatUsdc(stake)} wasn't taken — try backing it again.`
+          ? `Market opened. Your $${formatUsdc(stake)} may not have gone through — check the pot below before backing again.`
           : friendlyError(e),
       );
       if (opened) await load();
@@ -143,6 +148,7 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
                   myEntries={{}}
                   stake={stake}
                   busy={busy}
+                  canOpen={canOpen}
                   onBack={back}
                 />,
               ];
@@ -157,6 +163,7 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
                 myEntries={myEntries[pool.address.toBase58()] ?? {}}
                 stake={stake}
                 busy={busy}
+                canOpen={canOpen}
                 onBack={back}
               />
             ));

@@ -1573,3 +1573,5 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 
 /* Names which market's proof headlines the receipt below, so it's never read as the whole Match's verdict. */
 .match-receipt-hero-caption { margin: 0; font-size: 13px; font-weight: 600; opacity: 0.75; }
+
+.market-link { font-size: 12px; font-weight: 600; text-decoration: underline; }

@@ -26,8 +26,9 @@ export interface OpenDeps {
 /** Anchor's error when the PDA we tried to allocate already exists — i.e. we lost the race. */
 function isAlreadyInUse(e: unknown): boolean {
   if (!(e instanceof Error)) return false;
-  const logs = (e as { logs?: string[] }).logs ?? [];
-  return /already in use/i.test(`${e.message} ${logs.join(" ")}`);
+  const raw = (e as { logs?: unknown }).logs;
+  const logs = Array.isArray(raw) ? raw.join(" ") : "";
+  return /already in use/i.test(`${e.message} ${logs}`);
 }
 
 function sleep(ms: number): Promise<void> {

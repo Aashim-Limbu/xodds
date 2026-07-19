@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { fixtureById, poolOutcomeLabels } from "@/lib/fixtures";
 import { formatUsdc } from "@/lib/format";
 import { MARKETS, marketLabel, type Match } from "@/lib/markets";
@@ -61,7 +62,14 @@ export function MatchReceipt({ match }: { match: Match }) {
                   : "Still settling…";
             return (
               <li key={p.address.toBase58()}>
-                <span>{marketLabel(p.poolType, p.lineX2)}</span>
+                {/* Settled/void rows link to the Pool page — that's where the claim button is. */}
+                {p.state === "settled" || p.state === "void" ? (
+                  <Link href={`/pool/${p.address.toBase58()}`}>
+                    {marketLabel(p.poolType, p.lineX2)} — view & claim ↗
+                  </Link>
+                ) : (
+                  <span>{marketLabel(p.poolType, p.lineX2)}</span>
+                )}
                 <strong>{result}</strong>
                 <span className="mono">${formatUsdc(p.pot)}</span>
               </li>
