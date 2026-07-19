@@ -308,7 +308,7 @@ export default function Home() {
         {tab === "pools" && (
           <>
             <GetTestFunds />
-            <GameBrowser group={groupPubkey(activeId)} onCreated={() => setRefreshKey((k) => k + 1)} />
+            <GameBrowser group={groupPubkey(activeId)} />
             <PoolList group={groupPubkey(activeId)} refreshKey={refreshKey} />
           </>
         )}

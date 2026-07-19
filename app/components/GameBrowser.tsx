@@ -1,11 +1,11 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
 import { PublicKey } from "@solana/web3.js";
 import { type Fixture } from "@/lib/fixtures";
 import { marketState } from "@/lib/txline";
 import { useEndedFixtures, useFixtures } from "@/lib/useTxlineLive";
-import { CreatePoolModal } from "./CreatePoolModal";
 
 const DEMO = "Demo";
 
@@ -26,12 +26,12 @@ function gameLabel(f: Fixture, ended: Set<string>): string {
 }
 
 /** The available-games browser: real TxLINE Fixtures as tappable cards, grouped by
- * competition. Tap a card -> Create Pool modal. Replaces the old select-based panel. */
-export function GameBrowser({ group, onCreated }: { group: PublicKey; onCreated: () => void }) {
+ * competition. Tap a card -> the Match page for that (group, fixture). */
+export function GameBrowser({ group }: { group: PublicKey }) {
+  const router = useRouter();
   const fixtures = useFixtures();
   const ended = useEndedFixtures(fixtures);
   const [tab, setTab] = useState<string>("All");
-  const [picked, setPicked] = useState<Fixture | null>(null);
 
   const competitions = useMemo(() => {
     const names = new Set(fixtures.map((f) => f.competition ?? DEMO));
@@ -66,7 +66,11 @@ export function GameBrowser({ group, onCreated }: { group: PublicKey; onCreated:
 
       <div className="fixture-grid">
         {shown.map((f) => (
-          <button key={f.fixtureId.toString()} className="fixture-card" onClick={() => setPicked(f)}>
+          <button
+            key={f.fixtureId.toString()}
+            className="fixture-card"
+            onClick={() => router.push(`/match/${group.toBase58()}/${f.fixtureId.toString()}`)}
+          >
             <span className={`badge${(f.competition ?? DEMO) === "World Cup" ? " badge-wc" : ""}`}>
               {(f.competition ?? DEMO).toUpperCase()}
             </span>
@@ -78,14 +82,6 @@ export function GameBrowser({ group, onCreated }: { group: PublicKey; onCreated:
           </button>
         ))}
       </div>
-
-      <CreatePoolModal
-        open={picked !== null}
-        onClose={() => setPicked(null)}
-        fixture={picked}
-        group={group}
-        onCreated={onCreated}
-      />
     </div>
   );
 }
