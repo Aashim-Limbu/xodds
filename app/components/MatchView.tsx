@@ -91,6 +91,13 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
         // that happens to share that shape (line isn't part of the PDA seeds).
         await client.placeEntry(target.pool, outcome, stake);
       } else {
+        // Re-check at action time, not just render time: `canOpen` above can go stale if the
+        // page sits open across kickoff. The chain won't reject this — poolKickoffTs fabricates
+        // a future kickoff for a past-kickoff fixture — so this is the only gate.
+        if (marketState(fixture.kickoff, Date.now(), false) !== "open") {
+          setError("This match has kicked off — you can't open a new market on it now.");
+          return;
+        }
         const { pool, created } = await findOrOpenPool({
           client, group, fixture, poolType: target.poolType, lineX2: target.lineX2,
           kickoffTs: poolKickoffTs(fixture.kickoff), getAccessToken,
