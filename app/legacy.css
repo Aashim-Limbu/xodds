@@ -1556,3 +1556,10 @@ button.ptype-btn.active:hover { background: var(--yellow); }
   padding-top: 4px; border-top: 1px dashed rgba(31, 27, 16, 0.25);
 }
 .pc-teams { display: block; min-width: 0; overflow-wrap: anywhere; }
+
+/* ---- Market section (one market within a Match) ---- */
+.market-section { border-top: 2px dashed rgba(31, 27, 16, 0.25); padding-top: 14px; margin-top: 14px; }
+.market-section:first-of-type { border-top: 0; margin-top: 0; padding-top: 0; }
+.market-head { display: flex; align-items: baseline; justify-content: space-between; gap: 12px; margin-bottom: 12px; }
+.market-title { font-family: var(--display); font-size: 16px; font-weight: 800; text-transform: uppercase; margin: 0; }
+.market-note { font-size: 12px; color: var(--muted); margin: 8px 0 0; }
