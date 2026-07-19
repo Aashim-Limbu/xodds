@@ -1570,3 +1570,6 @@ button.ptype-btn.active:hover { background: var(--yellow); }
   font-size: 13px; padding-bottom: 6px; border-bottom: 1px dashed rgba(31, 27, 16, 0.25);
 }
 .match-results li:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* Names which market's proof headlines the receipt below, so it's never read as the whole Match's verdict. */
+.match-receipt-hero-caption { margin: 0; font-size: 13px; font-weight: 600; opacity: 0.75; }
