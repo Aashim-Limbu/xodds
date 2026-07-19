@@ -751,6 +751,45 @@ git commit -m "feat: MarketSection renders one market, including the unopened st
 
 The Room uses channel `fixture:<group>:<fixtureId>` — one chat for the whole match.
 
+- [ ] **Step 0: Extend the EXISTING MatchBanner instead of writing a second banner**
+
+`app/components/MatchBanner.tsx` already exists and is already used by `PoolView.tsx:259` and
+`SettledPool.tsx:65`. Do NOT write new banner markup — extend this one so it can also describe
+a whole Match, where there is no single `poolType`/`lineX2`.
+
+Change its props so the market chip is optional, and add a `markets` count for the Match case:
+
+```tsx
+export function MatchBanner({
+  fixture, fixtureId, poolType, lineX2, state, pot, markets,
+}: {
+  fixture?: Fixture;
+  fixtureId: bigint;
+  /** Omitted on a Match banner — a Match spans several markets, so there is no single one. */
+  poolType?: PoolTypeName;
+  lineX2?: number;
+  state: PoolState;
+  /** Live rolling pot while Open; the final pot once Settled. */
+  pot: bigint;
+  /** Match banner only: how many markets are open on this Fixture. */
+  markets?: number;
+}) {
+```
+
+and replace the chip's contents with:
+
+```tsx
+<span className="chip-id">
+  {poolType !== undefined
+    ? poolTypeLabel(poolType, lineX2 ?? 0)
+    : `${markets ?? 0} market${markets === 1 ? "" : "s"}`}
+  {" · "}FX-{fixtureId.toString()}
+</span>
+```
+
+Everything else in the file stays exactly as it is. `PoolView` and `SettledPool` keep passing
+`poolType`/`lineX2` and are unaffected — verify with `npx tsc --noEmit`.
+
 - [ ] **Step 1: Create MatchView**
 
 Create `app/components/MatchView.tsx`:
@@ -763,12 +802,13 @@ import { PublicKey } from "@solana/web3.js";
 import type { PoolAccount, PoolTypeName } from "@/lib/anchorClient";
 import { poolKickoffTs } from "@/lib/config";
 import { friendlyError } from "@/lib/errors";
-import { fixtureById, poolOutcomeLabels, teamFlag } from "@/lib/fixtures";
+import { fixtureById, poolOutcomeLabels } from "@/lib/fixtures";
 import { formatUsdc } from "@/lib/format";
 import { MARKETS, groupByFixture } from "@/lib/markets";
 import { findOrOpenPool } from "@/lib/openMarket";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { useFixtures } from "@/lib/useTxlineLive";
+import { MatchBanner } from "./MatchBanner";
 import { MarketSection } from "./MarketSection";
 import { Feed } from "./Feed";
 
@@ -846,24 +886,13 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
   return (
     <div className="pool-layout">
       <div className="stack" style={{ gap: 0 }}>
-        <div className="match-banner">
-          <div className="match-teams">
-            <span className="team">
-              <span className="flag" aria-hidden="true">{teamFlag(fixture.home)}</span>
-              <span className="tname">{fixture.home}</span>
-            </span>
-            <span className="vs" aria-hidden="true">vs</span>
-            <span className="team">
-              <span className="flag" aria-hidden="true">{teamFlag(fixture.away)}</span>
-              <span className="tname">{fixture.away}</span>
-            </span>
-          </div>
-          <div className="prize-tag">
-            <div className="label">Total prize pool</div>
-            <div className="pot">${formatUsdc(match?.pot ?? 0n)}</div>
-            <div className="prize-foot">across every market 🤑</div>
-          </div>
-        </div>
+        <MatchBanner
+          fixture={fixture}
+          fixtureId={fixtureId}
+          state={match?.state ?? "open"}
+          pot={match?.pot ?? 0n}
+          markets={pools.length}
+        />
 
         {error && <p className="error">{error}</p>}
         {notice && <p className="entry-note">{notice}</p>}
@@ -979,7 +1008,9 @@ Expected: `Compiled successfully` and `/match/[group]/[fixture]` in the route ma
 - [ ] **Step 4: Commit**
 
 ```bash
-git add app/components/MatchView.tsx "app/app/match/[group]/[fixture]/page.tsx"
+# MatchBanner is committed here because MatchView imports it — committing code that
+# imports an untracked file would produce a broken tree. Commit ONLY these paths.
+git add app/components/MatchBanner.tsx app/components/MatchView.tsx "app/app/match/[group]/[fixture]/page.tsx"
 git commit -m "feat: Match page with markets inline and one Room per Fixture"
 ```
 
@@ -1151,8 +1182,12 @@ Expected: clean typecheck, `Compiled successfully`, and all tests pass (109 exis
 
 - [ ] **Step 6: Commit**
 
+The working tree carries unrelated in-flight work (DepositModal, Avatars, useCountUp and
+others). NEVER use `git add -A` or `git add .` in this repo — stage only these paths:
+
 ```bash
-git add -A
+git add app/components/GameBrowser.tsx app/app/page.tsx
+git rm --cached app/components/CreatePoolModal.tsx 2>/dev/null || true
 git commit -m "feat: browse straight to a Match; drop the pick-a-market prompt"
 ```
 
