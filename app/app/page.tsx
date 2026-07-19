@@ -349,7 +349,7 @@ export default function Home() {
             </div>
           </>
         )}
-        {tab === "activity" && <Feed feed={feed} />}
+        {tab === "activity" && <Feed feed={feed} me={displayName} />}
         {tab === "profile" && (
           <Profile
             email={email}

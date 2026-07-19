@@ -9,6 +9,7 @@ export interface FeedEvent {
   author: string; // display name; "" for system posts
   text: string; // message text, reaction emoji, or system line
   ts: number;
+  target?: string; // reaction only: id of the message it's clamped onto (undefined = legacy free-floating)
 }
 
 export const FEED_CAP = 200;

@@ -35,7 +35,8 @@ export interface FeedApi {
   events: FeedEvent[];
   present: string[]; // display names currently on this channel
   sendMessage: (text: string) => void;
-  sendReaction: (emoji: string) => void;
+  /** React to a specific message. Idempotent per (message, emoji, you) — re-tapping is a no-op. */
+  sendReaction: (emoji: string, target: string) => void;
   /** Announce an action once — deduped by `id` so many observers don't repeat it. */
   postSystem: (id: string, text: string) => void;
 }
@@ -73,7 +74,7 @@ export function useFeed(channelKey: string, displayName: string): FeedApi {
     // History first — late joiners and reloads see the Group's record, not an empty room.
     sb
       .from("feed_events")
-      .select("id, kind, author, text, ts")
+      .select("id, kind, author, text, ts, target")
       .eq("channel", channelKey)
       .order("ts", { ascending: false })
       .limit(200)
@@ -140,7 +141,13 @@ export function useFeed(channelKey: string, displayName: string): FeedApi {
   );
 
   const sendReaction = useCallback(
-    (emoji: string) => broadcast({ id: randomId(), kind: "reaction", author: displayName || "anon", text: emoji, ts: Date.now() }),
+    (emoji: string, target: string) => {
+      const author = displayName || "anon";
+      // Deterministic id → ON CONFLICT DO NOTHING dedupes one reaction per (message, emoji, you)
+      // across reloads and clients. ponytail: no toggle-off — un-reacting needs a DELETE path +
+      // RLS delete policy; add that if users ask to remove reactions.
+      broadcast({ id: `r:${target}:${emoji}:${author}`, kind: "reaction", author, text: emoji, ts: Date.now(), target });
+    },
     [broadcast, displayName],
   );
 
