@@ -1,5 +1,6 @@
 "use client";
 
+import { Face } from "@/components/Avatars";
 import { useEffect, useMemo, useState } from "react";
 import { NotificationsBell } from "@/components/NotificationsBell";
 import { Profile } from "@/components/Profile";
@@ -51,7 +52,8 @@ export default function Home() {
   const [showNewGroup, setShowNewGroup] = useState(false);
   const [showAddFriend, setShowAddFriend] = useState(false);
   const [membersKey, setMembersKey] = useState(0); // bump to re-fetch the roster
-  // The per-Group Feed (CONTEXT.md), mounted on the Group home; Pool pages join the same channel.
+  // The per-Group Feed (CONTEXT.md), mounted on the Group home. Pool pages have their own
+  // `pool:<address>` channel — see PoolView.
   const { name: displayName, saveName, needsOnboarding } = useMyName();
   const groupChannel = useMemo(() => `group:${groupPubkey(activeId).toBase58()}`, [activeId]);
   const feed = useFeed(authenticated ? groupChannel : "", displayName, wallet);
@@ -322,7 +324,7 @@ export default function Home() {
               ) : (
                 members.map((m) => (
                   <div key={m.wallet} className="row between">
-                    <span className="row"><span className="msym">person</span><strong>{m.name}</strong></span>
+                    <span className="row"><Face id={m.wallet} size={24} /><strong>{m.name}</strong></span>
                     <span className="row" style={{ gap: 6 }}>
                       {m.status === "invited" && <span className="badge">INVITED</span>}
                       {feed.present.includes(m.name) && <span className="badge">ONLINE</span>}
@@ -335,7 +337,7 @@ export default function Home() {
                 .filter((name) => !members.some((m) => m.name === name))
                 .map((name) => (
                   <div key={name} className="row between">
-                    <span className="row"><span className="msym">person</span><strong>{name}</strong></span>
+                    <span className="row"><Face id={name} size={24} /><strong>{name}</strong></span>
                     <span className="badge">ONLINE</span>
                   </div>
                 ))}

@@ -1,5 +1,6 @@
 "use client";
 
+import { Face } from "@/components/Avatars";
 import { formatUsdc, shortAddress } from "@/lib/format";
 import { useLeaderboard } from "@/lib/useLeaderboard";
 import type { Standing } from "@/lib/leaderboard";
@@ -33,6 +34,7 @@ function Row({ rank, s }: { rank: number; s: Standing }) {
   return (
     <div className="lb-row">
       <span className="lb-rank">{RANK_STICKER[rank] ?? rank + 1}</span>
+      <Face id={s.wallet} size={24} />
       <span className="lb-name" title={s.wallet}>
         {s.name.includes("@") || s.name.length < 12 ? s.name : shortAddress(s.name)}
         {s.streak >= 3 && <span className="lb-streak" title={`${s.streak}-win streak`}>🔥{s.streak}</span>}

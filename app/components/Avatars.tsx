@@ -1,48 +1,44 @@
-/* Fabricated participant avatars — placeholder identities for the dashboard design.
- * ponytail: the app tracks no per-Pool participants or user photos, so these are
- * deterministic decoration seeded off the Pool/Group key. Swap for real Members when we have them. */
+"use client";
 
-const PALETTE = ["#ffd600", "#4aa3ff", "#35d07f", "#ff8a3d", "#c77dff", "#ff6b6b"];
-const INITIALS = ["JD", "AK", "MR", "SL", "TB", "EN", "KP", "RC", "VG", "OL"];
+import { Facehash } from "facehash";
 
-function hash(seed: string): number {
-  let h = 0;
-  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0;
-  return h;
-}
+// The app's original avatar palette, kept: facehash's own feature variation is far too
+// subtle to tell people apart at 24px, so the background colour does the identifying work
+// and the face does the personality. Without this every avatar reads as the same blank disc.
+const FACE_COLORS = ["#ffd600", "#4aa3ff", "#35d07f", "#ff8a3d", "#c77dff", "#ff6b6b"];
 
-/** A stacked row of fake avatars + "+N" overflow chip. `count` is the fabricated total.
- * Set `showMore={false}` where a separate label already states the total (e.g. the group hero). */
-export function Avatars({
-  seed,
-  count,
-  shown = 3,
-  showMore = true,
-}: {
-  seed: string;
-  count: number;
-  shown?: number;
-  showMore?: boolean;
-}) {
-  const base = hash(seed);
-  const faces = Math.min(shown, count);
-  const extra = showMore ? count - faces : 0;
+/** One person's face, deterministic from their identity — pass the wallet where we have it,
+ * the display name where we don't (Feed presence). Same string always draws the same face. */
+export function Face({ id, size = 28 }: { id: string; size?: number }) {
   return (
-    <div className="avatars" aria-label={`${count} participants`}>
-      {Array.from({ length: faces }).map((_, i) => {
-        const h = (base >> (i * 3)) + i * 7;
-        return (
-          <span key={i} className="avatar" style={{ background: PALETTE[h % PALETTE.length] }}>
-            {INITIALS[h % INITIALS.length]}
-          </span>
-        );
-      })}
-      {extra > 0 && <span className="avatar more">+{extra}</span>}
-    </div>
+    <span className="face" style={{ width: size, height: size }} aria-hidden="true">
+      <Facehash name={id} size={size} showInitial={false} colors={FACE_COLORS} />
+    </span>
   );
 }
 
-/** Deterministic fabricated participant count for a Pool (2–24), seeded off its key + pot. */
-export function fakeParticipants(seed: string, pot: bigint): number {
-  return 2 + (hash(seed + pot.toString()) % 23);
+/** A stacked row of real people + "+N" overflow chip. `ids` are wallets (Pool entrants) or
+ * display names (Feed presence) — whatever identity that surface actually has.
+ * Set `showMore={false}` where a separate label already states the total (e.g. the group hero). */
+export function Avatars({
+  ids,
+  shown = 3,
+  showMore = true,
+}: {
+  ids: string[];
+  shown?: number;
+  showMore?: boolean;
+}) {
+  const faces = ids.slice(0, shown);
+  const extra = showMore ? ids.length - faces.length : 0;
+  return (
+    <div className="avatars" aria-label={`${ids.length} participants`}>
+      {faces.map((id) => (
+        <span key={id} className="avatar">
+          <Face id={id} size={26} />
+        </span>
+      ))}
+      {extra > 0 && <span className="avatar more">+{extra}</span>}
+    </div>
+  );
 }

@@ -37,7 +37,7 @@ export function GroupBar({
           {/* Honest presence: who is on the Group Feed right now — no fabricated membership. */}
           {online.length > 0 && (
             <div className="hero-members">
-              <Avatars seed={active.id} count={online.length} shown={3} showMore />
+              <Avatars ids={online} shown={3} showMore />
               <span className="label">{online.length} ONLINE NOW</span>
             </div>
           )}
