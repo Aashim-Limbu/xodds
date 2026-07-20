@@ -16,6 +16,7 @@ const POOL_TYPES: Record<PoolTypeName, { arg: object; byte: number }> = {
   totalGoals: { arg: TOTAL_GOALS, byte: 1 },
   totalCorners: { arg: { totalCorners: {} }, byte: 2 },
   totalCards: { arg: { totalCards: {} }, byte: 3 },
+  handicap: { arg: { handicap: {} }, byte: 4 },
 };
 
 type Program = Harness["program"];

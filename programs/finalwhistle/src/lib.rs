@@ -43,12 +43,14 @@ pub mod finalwhistle {
         pool_type: PoolType,
         nonce: u64,
         kickoff_ts: i64,
-        line_x2: u16,
+        line_x2: i16,
     ) -> Result<()> {
         // Line-based types need a half-integer Line (odd × 2) so a push is impossible;
-        // MatchWinner has no Line.
+        // MatchWinner has no Line. `rem_euclid` (not `%`) so a negative Handicap Line is
+        // judged on magnitude — in Rust `-1 % 2 == -1`, which would reject every away-side
+        // Handicap.
         let line_x2 = if pool_type.has_line() {
-            require!(line_x2 % 2 == 1, FinalWhistleError::InvalidLine);
+            require!(line_x2.rem_euclid(2) == 1, FinalWhistleError::InvalidLine);
             line_x2
         } else {
             0
@@ -167,6 +169,10 @@ pub mod finalwhistle {
             PoolType::TotalGoals => over_under(proof.home_goals, proof.away_goals, pool.line_x2),
             PoolType::TotalCorners => over_under(proof.home_corners, proof.away_corners, pool.line_x2),
             PoolType::TotalCards => over_under(proof.home_cards, proof.away_cards, pool.line_x2),
+            // Asian Handicap: the Line is applied to the HOME side (TxLINE's `part1`, probed
+            // 2026-07-19 — AH -0.5 reproduces the outright 1X2 home price, AH 0 reproduces
+            // draw-no-bet). Negative = home gives goals away. 0 home covers / 1 away covers.
+            PoolType::Handicap => handicap(proof.home_goals, proof.away_goals, pool.line_x2),
         };
 
         // Nobody backed the proven Outcome -> Void, so the pot isn't stranded (ADR-0003).
@@ -554,9 +560,10 @@ pub struct Pool {
     pub creator: Pubkey,
     pub fixture_id: u64,
     pub pool_type: PoolType,
-    /// The Over/Under Line times two (a half-integer, so always odd) for line-based Pool
-    /// Types; 0 for MatchWinner. Storing ×2 keeps it an integer and makes a tie impossible.
-    pub line_x2: u16,
+    /// The Line times two (a half-integer, so always odd) for line-based Pool Types; 0 for
+    /// MatchWinner. Storing ×2 keeps it an integer and makes a tie impossible. SIGNED because
+    /// a Handicap Line has a direction (home -1.5 is `-3`); O/U Lines are always positive.
+    pub line_x2: i16,
     pub nonce: u64,
     pub state: PoolState,
     pub kickoff_ts: i64,
@@ -617,13 +624,20 @@ pub enum PoolType {
     TotalCorners,
     /// Total Cards Over/Under a Line — 2 Outcomes (Over / Under).
     TotalCards,
+    /// Asian Handicap on goals, Line applied to the home side — 2 Outcomes
+    /// (home covers / away covers). Appended last so the existing variants keep their
+    /// discriminants and already-created Pools still decode.
+    Handicap,
 }
 
 impl PoolType {
     pub fn outcome_count(&self) -> usize {
         match self {
             PoolType::MatchWinner => 3,
-            PoolType::TotalGoals | PoolType::TotalCorners | PoolType::TotalCards => 2,
+            PoolType::TotalGoals
+            | PoolType::TotalCorners
+            | PoolType::TotalCards
+            | PoolType::Handicap => 2,
         }
     }
 
@@ -634,8 +648,15 @@ impl PoolType {
 }
 
 /// The shared O/U predicate: home+away total vs the half-integer Line (both doubled).
-fn over_under(home: u8, away: u8, line_x2: u16) -> u8 {
-    if (home as u16 + away as u16) * 2 > line_x2 { 0 } else { 1 }
+/// Totals cap at 255+255, so `*2` cannot overflow i16.
+fn over_under(home: u8, away: u8, line_x2: i16) -> u8 {
+    if (home as i16 + away as i16) * 2 > line_x2 { 0 } else { 1 }
+}
+
+/// The Handicap predicate: the home margin, plus the Line, against zero (both doubled).
+/// The margin is an integer and the Line is odd, so the sum is never zero — no push.
+fn handicap(home: u8, away: u8, line_x2: i16) -> u8 {
+    if (home as i16 - away as i16) * 2 + line_x2 > 0 { 0 } else { 1 }
 }
 
 #[derive(AnchorSerialize, AnchorDeserialize, Clone, Copy, PartialEq, Eq, InitSpace)]
@@ -666,7 +687,7 @@ pub enum FinalWhistleError {
     ProofVerificationFailed,
     #[msg("Fixture is not finalised")]
     FixtureNotFinalised,
-    #[msg("Over/Under Line must be a half-integer (odd when stored as line_x2)")]
+    #[msg("Line must be a half-integer (odd when stored as line_x2) — whole lines can push")]
     InvalidLine,
     #[msg("Scores root account is invalid or not owned by TxLINE")]
     InvalidScoresRoot,

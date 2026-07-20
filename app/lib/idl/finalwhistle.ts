@@ -251,7 +251,7 @@ export type Finalwhistle = {
         },
         {
           "name": "lineX2",
-          "type": "u16"
+          "type": "i16"
         }
       ]
     },
@@ -556,7 +556,7 @@ export type Finalwhistle = {
     {
       "code": 6009,
       "name": "invalidLine",
-      "msg": "Over/Under Line must be a half-integer (odd when stored as line_x2)"
+      "msg": "Line must be a half-integer (odd when stored as line_x2) — whole lines can push"
     },
     {
       "code": 6010,
@@ -646,10 +646,11 @@ export type Finalwhistle = {
           {
             "name": "lineX2",
             "docs": [
-              "The Over/Under Line times two (a half-integer, so always odd) for line-based Pool",
-              "Types; 0 for MatchWinner. Storing ×2 keeps it an integer and makes a tie impossible."
+              "The Line times two (a half-integer, so always odd) for line-based Pool Types; 0 for",
+              "MatchWinner. Storing ×2 keeps it an integer and makes a tie impossible. SIGNED because",
+              "a Handicap Line has a direction (home -1.5 is `-3`); O/U Lines are always positive."
             ],
-            "type": "u16"
+            "type": "i16"
           },
           {
             "name": "nonce",
@@ -831,6 +832,9 @@ export type Finalwhistle = {
           },
           {
             "name": "totalCards"
+          },
+          {
+            "name": "handicap"
           }
         ]
       }

@@ -39,6 +39,10 @@ export interface ScoresRecord {
   action: string;
   participant1IsHome: boolean;
   statusSoccerId?: number;
+  /** The live feed's own lifecycle word ("scheduled", …). Probed 2026-07-19: this is present
+   * on every record while `statusSoccerId` is absent entirely, so it is the only phase signal
+   * that actually arrives. */
+  gameState?: string;
   seq?: number;
   stats?: Record<string, number>;
 }
@@ -50,6 +54,7 @@ export function normalizeScores(records: Array<Record<string, unknown>>): Scores
     action: (r.action ?? r.Action ?? "") as string,
     participant1IsHome: (r.participant1IsHome ?? r.Participant1IsHome ?? true) as boolean,
     statusSoccerId: (r.statusSoccerId ?? r.StatusSoccerId) as number | undefined,
+    gameState: (r.gameState ?? r.GameState) as string | undefined,
     seq: (r.seq ?? r.Seq) as number | undefined,
     stats: (r.stats ?? r.Stats) as Record<string, number> | undefined,
   }));
@@ -79,19 +84,26 @@ export interface TxlineLive {
   score?: LiveScore;
   /** Suggested Total Goals lines from the odds feed, as line×2 (odd = half-integer only). */
   goalLines?: number[];
+  /** Suggested Asian Handicap lines from the odds feed, as line×2, signed and home-relative. */
+  handicapLines?: number[];
 }
 
 // Live devnet feed pins SuperOddsType = "1X2_PARTICIPANT_RESULT" (probe 2026-07-16); older
 // docs said "1X2" — match both.
 const is1x2 = (t: string) => /1X2/i.test(t);
 const isGoalsOU = (t: string) => /OVERUNDER.*GOALS/i.test(t);
+// Pinned against the live devnet feed (fixture 18257739, probe 2026-07-19):
+// SuperOddsType = "ASIANHANDICAP_PARTICIPANT_GOALS", PriceNames ["part1","part2"].
+const isHandicap = (t: string) => /ASIANHANDICAP.*GOALS/i.test(t);
 // In-running lines are deliberately INCLUDED: pre-kickoff the feed carries pre-match lines,
 // in-play it carries InRunning ones — latest-Ts-wins means Reference Odds become live win
 // probabilities once the match starts (the Locked-state ticker).
 const isFullTime = (p: OddsPayload) => !p.MarketPeriod || /full|match|ft/i.test(p.MarketPeriod);
-const HOME_NAMES = new Set(["1", "home", "h"]);
+// Pinned against a real devnet 1X2 record (fixture 18257739, 2026-07-19): the live feed
+// names the outcomes "part1"/"draw"/"part2", NOT "1"/"2". Accept both.
+const HOME_NAMES = new Set(["1", "home", "h", "part1", "p1"]);
 const DRAW_NAMES = new Set(["x", "draw", "tie"]);
-const AWAY_NAMES = new Set(["2", "away", "a"]);
+const AWAY_NAMES = new Set(["2", "away", "a", "part2", "p2"]);
 
 function pctToProb(pct: string | undefined): number {
   if (!pct || pct === "NA") return 0;
@@ -102,12 +114,16 @@ function pctToProb(pct: string | undefined): number {
 /**
  * Pick the latest full-time 1X2 line and return normalised [home, draw, away] implied
  * probabilities. Returns undefined if no usable 1X2 line is present (UI keeps its fallback).
+ *
+ * Falls back to a period line when the feed quotes no full-time 1X2 — devnet fixtures are
+ * routinely priced only as `MarketPeriod: "half=1"`, and rejecting those left every real Pool
+ * showing "—" instead of odds. Full-time still wins whenever it is quoted.
  */
 export function pick1x2Probabilities(odds: OddsPayload[]): [number, number, number] | undefined {
-  const lines = odds
-    .filter((p) => is1x2(p.SuperOddsType) && isFullTime(p) && p.PriceNames.length === 3)
+  const all1x2 = odds
+    .filter((p) => is1x2(p.SuperOddsType) && p.PriceNames.length === 3)
     .sort((a, b) => b.Ts - a.Ts);
-  const line = lines[0];
+  const line = all1x2.find(isFullTime) ?? all1x2[0];
   if (!line) return undefined;
 
   const slot = [0, 0, 0] as [number, number, number];
@@ -123,32 +139,58 @@ export function pick1x2Probabilities(odds: OddsPayload[]): [number, number, numb
   return [slot[0] / sum, slot[1] / sum, slot[2] / sum]; // strip the bookmaker's overround
 }
 
-/** The market's O/U line from MarketParameters (either shape), or undefined. */
+/** The market's Line from MarketParameters (either shape), or undefined. Signed: Asian
+ * Handicap lines are routinely negative ("line=-0.5"), and dropping the sign would invert
+ * which side is giving goals away. */
 function marketLine(p: OddsPayload): number | undefined {
   const mp = p.MarketParameters;
   if (typeof mp === "string") {
-    const m = /line=([\d.]+)/.exec(mp);
+    const m = /line=(-?[\d.]+)/.exec(mp);
     return m ? Number(m[1]) : undefined;
   }
   return mp?.line;
 }
 
-/**
- * Suggested Total Goals lines from the odds feed, as line×2, half-integers only (the program
- * forbids pushes, so quarter lines like 2.25 are dropped — decision 2026-07-16). Sorted asc.
- */
-export function pickGoalLines(odds: OddsPayload[]): number[] {
+/** Lines the program can settle honestly, as line×2. Half-integers only: the pot has no
+ * per-Entry refund, so a whole line (which pushes) and a quarter line (which half-pushes)
+ * are DROPPED, never rounded — showing "2.25" while paying like 2.5 would misprice a bet. */
+function settleableLinesX2(odds: OddsPayload[], match: (t: string) => boolean): number[] {
   const lines = new Set<number>();
   for (const p of odds) {
-    if (!isGoalsOU(p.SuperOddsType) || !isFullTime(p)) continue;
+    if (!match(p.SuperOddsType) || !isFullTime(p)) continue;
     const line = marketLine(p);
     if (line === undefined) continue;
     const x2 = line * 2;
-    // Exact half-integer lines only: 2.5 -> 5 ✓; quarter lines (2.25 -> 4.5) are DROPPED,
-    // not rounded — the feed never quoted 2.5 (Codex P2).
-    if (Number.isInteger(x2) && x2 % 2 === 1) lines.add(x2);
+    if (Number.isInteger(x2) && Math.abs(x2 % 2) === 1) lines.add(x2);
   }
   return [...lines].sort((a, b) => a - b);
+}
+
+/**
+ * Suggested Total Goals lines from the odds feed, as line×2, half-integers only. Sorted asc.
+ *
+ * The feed's market set FILLS IN over the first minutes after a snapshot goes live (probed
+ * 2026-07-19: the same fixture returned 17 markets, then 20, 24, 26 across ~60s), so this can
+ * legitimately return fewer lines on an early call than a later one. Callers must treat a
+ * short list as "not warmed up yet", never as "these are the only lines".
+ */
+export function pickGoalLines(odds: OddsPayload[]): number[] {
+  return settleableLinesX2(odds, isGoalsOU);
+}
+
+/**
+ * Suggested Asian Handicap lines from the odds feed, as line×2, signed and HOME-relative
+ * (negative = home gives goals away), half-integers only.
+ *
+ * The feed states the line against `part1`, and never says which side that is — so the caller
+ * must pass the fixture's `participant1IsHome` and we flip when part1 is the away side. The
+ * devnet slate is 100% `participant1IsHome: true`, so the flip is unexercised there; it is
+ * written from the feed's own contract rather than from an observed counter-example.
+ */
+export function pickHandicapLines(odds: OddsPayload[], participant1IsHome = true): number[] {
+  const part1 = settleableLinesX2(odds, isHandicap);
+  const home = participant1IsHome ? part1 : part1.map((x2) => -x2);
+  return home.sort((a, b) => a - b);
 }
 
 const K = { p1g: "1", p2g: "2", p1y: "3", p2y: "4", p1r: "5", p2r: "6", p1c: "7", p2c: "8" };
@@ -161,10 +203,21 @@ const PHASE: Record<number, string> = {
   14: "Interrupted", 15: "Abandoned", 16: "Cancelled", 19: "Postponed",
 };
 
-/** The current scoreline + phase from the latest snapshot record; undefined before any record. */
+/**
+ * The current scoreline + phase from the latest snapshot record; undefined before any record
+ * AND while the match has not kicked off.
+ *
+ * The kickoff guard is load-bearing, not defensive. The real feed publishes records from the
+ * moment a fixture is listed — probed 2026-07-19, fixture 18257739 returned four records with
+ * `GameState: "scheduled"`, `Stats: {}` and NO `StatusSoccerId`, 47 minutes before kickoff.
+ * Without this the phase lookup misses (`PHASE[0]` is undefined), falls through to the literal
+ * "In play", and the UI announces "IN PLAY Spain 0–0 Argentina" for a match that has not begun
+ * — inventing a live score out of an empty stats object.
+ */
 export function liveScore(records: ScoresRecord[]): LiveScore | undefined {
   const rec = [...records].sort((a, b) => (b.seq ?? 0) - (a.seq ?? 0))[0];
   if (!rec) return undefined;
+  if (rec.gameState?.toLowerCase() === "scheduled") return undefined;
   const s = rec.stats ?? {};
   const p1 = s[K.p1g] ?? 0;
   const p2 = s[K.p2g] ?? 0;

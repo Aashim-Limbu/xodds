@@ -12,15 +12,19 @@ import { RPC_URL, usdcMint } from "./config";
 import { entryPda, escrowPda, poolPda } from "./pdas";
 
 export type PoolState = "open" | "locked" | "settled" | "void";
-export type PoolTypeName = "matchWinner" | "totalGoals" | "totalCorners" | "totalCards";
+// totalCorners/totalCards are no longer offered as markets (see lib/markets.ts) but stay here
+// so Pools created before they were withdrawn still decode and can still be claimed/refunded.
+export type PoolTypeName = "matchWinner" | "totalGoals" | "totalCorners" | "totalCards" | "handicap";
 
 const POOL_TYPE_ARG: Record<PoolTypeName, object> = {
   matchWinner: { matchWinner: {} },
   totalGoals: { totalGoals: {} },
   totalCorners: { totalCorners: {} },
   totalCards: { totalCards: {} },
+  handicap: { handicap: {} },
 };
-const POOL_TYPE_BYTE: Record<PoolTypeName, number> = { matchWinner: 0, totalGoals: 1, totalCorners: 2, totalCards: 3 };
+// Must match the PoolType discriminants in lib.rs — Handicap is appended last (4).
+const POOL_TYPE_BYTE: Record<PoolTypeName, number> = { matchWinner: 0, totalGoals: 1, totalCorners: 2, totalCards: 3, handicap: 4 };
 
 export interface ProvenStats {
   homeGoals: number;
@@ -229,6 +233,27 @@ export class FinalWhistleClient {
       }
     }
     return pools;
+  }
+
+  /** Wallets holding an Entry in a Pool — the real participants behind a Pool's avatars.
+   * `Entry.pool` sits at offset 8, the same field the program-accounts proxy memcmps on, so
+   * the Pool address doubles as the scan key and no new route is needed.
+   * ponytail: winning Entries are closed on claim (ADR-0004), so a Settled Pool under-reports
+   * as people cash out. Read pool_results instead if that ever matters. */
+  async listEntrants(pool: PublicKey): Promise<string[]> {
+    const res = await fetch(`/api/chain/program-accounts?group=${pool.toBase58()}`);
+    if (!res.ok) return [];
+    const rows = (await res.json()) as Array<{ pubkey: string; data: string }>;
+    const wallets = new Set<string>();
+    for (const { data } of rows) {
+      try {
+        const entry = this.program.coder.accounts.decode("entry", Buffer.from(data, "base64"));
+        wallets.add(entry.user.toBase58());
+      } catch {
+        // the Pool account itself, or an older layout — skip
+      }
+    }
+    return [...wallets];
   }
 
   /** Pools, optionally scoped to a Group (memcmp on the `group` field at offset 8).
