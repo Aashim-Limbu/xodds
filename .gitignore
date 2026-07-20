@@ -36,3 +36,4 @@ keeper-keypair.json
 # local AI-assist / tooling config — kept out of history
 CLAUDE.md
 .superpowers/
+pool-preview.html

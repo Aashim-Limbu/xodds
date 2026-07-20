@@ -24,7 +24,28 @@ const SERVICE_LEVEL_ID = 1; // free World Cup tier
 const DURATION_WEEKS = 4;
 const SELECTED_LEAGUES: number[] = []; // standard free bundle
 
+// Network mismatch (RPC on one cluster, TxLINE origin on another) is the #1 cause of an
+// activation 403, so refuse to submit when they disagree.
+// ponytail: string heuristic, not a genesis-hash probe — the origin has no queryable
+// cluster and defaults already agree; upgrade only if a URL ever hides its network.
+export function clusterOf(url: string): "devnet" | "mainnet" | "unknown" {
+  if (/devnet|txline-dev/i.test(url)) return "devnet";
+  if (/mainnet|txline\.txodds\.com/i.test(url)) return "mainnet";
+  return "unknown";
+}
+
+function assertSameCluster(rpc: string, origin: string): void {
+  const [r, o] = [clusterOf(rpc), clusterOf(origin)];
+  if (r !== "unknown" && o !== "unknown" && r !== o) {
+    throw new Error(
+      `Network mismatch: RPC looks ${r} (${rpc}) but TxLINE origin looks ${o} (${origin}). ` +
+        `Point KEEPER_RPC_URL and TXLINE_ORIGIN at the same cluster.`,
+    );
+  }
+}
+
 async function main() {
+  assertSameCluster(RPC_URL, ORIGIN);
   const payer = Keypair.fromSecretKey(Uint8Array.from(JSON.parse(readFileSync(KEYPAIR_PATH, "utf8"))));
   const connection = new Connection(RPC_URL, "confirmed");
   const provider = new AnchorProvider(connection, new Wallet(payer), { commitment: "confirmed" });
@@ -92,4 +113,19 @@ async function main() {
   console.log("\nPut both in app/.env.local and the keeper env (valid 4 weeks; JWT 30 days).");
 }
 
-void main();
+// SELFTEST=1 pnpm tsx keeper/subscribe-txline.ts — checks the guard, submits nothing.
+if (process.env.SELFTEST) {
+  const eq = (a: unknown, b: unknown, m: string) => { if (a !== b) throw new Error(`SELFTEST ${m}: ${a} !== ${b}`); };
+  eq(clusterOf("https://api.devnet.solana.com"), "devnet", "rpc devnet");
+  eq(clusterOf("https://txline-dev.txodds.com"), "devnet", "origin devnet");
+  eq(clusterOf("https://api.mainnet-beta.solana.com"), "mainnet", "rpc mainnet");
+  eq(clusterOf("https://txline.txodds.com"), "mainnet", "origin mainnet");
+  eq(clusterOf("https://my-private-rpc.example"), "unknown", "custom rpc");
+  let threw = false;
+  try { assertSameCluster("https://api.mainnet-beta.solana.com", "https://txline-dev.txodds.com"); } catch { threw = true; }
+  eq(threw, true, "mismatch throws");
+  assertSameCluster("https://my-private-rpc.example", "https://txline-dev.txodds.com"); // unknown side passes
+  console.log("SELFTEST ok");
+} else {
+  void main();
+}
