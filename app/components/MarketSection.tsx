@@ -81,11 +81,12 @@ export function MarketSection({
         })}
       </div>
 
-      {pool === null && (
+      {/* Only the closed case needs prose. When the market is open the badge already says
+          "not opened yet" and the buttons say "Back $5" — a third sentence repeating that was
+          noise, and it was what made each section feel crowded. */}
+      {pool === null && !canOpen && (
         <p className="market-note">
-          {canOpen
-            ? "Nobody has opened this market yet — back it to start it."
-            : "Kicked off — market closed. This market was never opened, so it can't be backed."}
+          Kicked off — market closed. This market was never opened, so it can&rsquo;t be backed.
         </p>
       )}
     </section>

@@ -125,7 +125,9 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
 
   return (
     <div className="pool-layout">
-      <div className="stack" style={{ gap: 0 }}>
+      {/* The banner is a heavy element (hard shadows, 3px borders); a zero gap let it collide
+          with the markets panel. 18px is the same rhythm PoolView gives it. */}
+      <div className="stack" style={{ gap: 18 }}>
         <MatchBanner
           fixture={fixture}
           fixtureId={fixtureId}
