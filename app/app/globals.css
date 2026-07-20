@@ -11,6 +11,15 @@
 /* The existing design system, verbatim, safely outranked by utilities. */
 @import "../legacy.css" layer(legacy);
 
+/* Tailwind ships its own `.container` utility, and `utilities` outranks `legacy` — so the
+   legacy page container silently lost its `max-width: var(--page-w)` and the page measure
+   became Tailwind's viewport-stepped one. That is why content ran wider than `.dash-nav-inner`,
+   which derives from --page-w and had no such collision. Restating it in the same layer (later
+   in source) makes --page-w the single source of truth again, so nav and content line up. */
+@layer utilities {
+  .container { max-width: var(--page-w); }
+}
+
 /* Brutalist tokens -> Tailwind tokens. `inline` resolves these at use, so Tailwind's
    colour utilities read the legacy variables directly.
 

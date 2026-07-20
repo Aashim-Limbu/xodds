@@ -1,5 +1,11 @@
 :root {
   --ease-out: cubic-bezier(0.23, 1, 0.32, 1); /* strong ease-out for UI entrances */
+  --bubble-meta-h: 16px; /* Feed author line — .turn-avatar offsets by it to meet the bubble */
+  /* One page measure, used by BOTH the nav and the content container. They were set
+     independently before, and because .container spends 20px a side on padding while the nav
+     spends it on the outer bar, the nav's contents ran 40px wider than every card below. */
+  --page-w: 1400px; /* the dashboard grid and the Pool rail both want the extra measure */
+  --page-pad: 20px;
   --bg: #fff8ef;
   --paper: #ffffff;
   --cream-2: #f6edda;
@@ -7,7 +13,7 @@
   --muted: #4d4632;
   --yellow: #ffd700; /* deep, high-saturation "UX-correct" yellow, per Stitch hero spec */
   --yellow-deep: #e9c400;
-  --olive: #705d00; /* Stitch "primary" — the top-nav bar */
+  --olive: #705d00; /* deep olive — send-button hover only */
   --blue: #0046fa;
   --green: #056a30; /* AA (4.5+) even on the open/verify tint */
   --danger: #d32f2f;
@@ -40,7 +46,7 @@ body {
 
 a { color: var(--blue); font-weight: 700; }
 
-.container { max-width: 1100px; margin: 0 auto; padding: 24px 20px 80px; }
+.container { max-width: var(--page-w); margin: 0 auto; padding: 24px var(--page-pad) 80px; }
 
 .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 28px; }
 .brand {
@@ -172,34 +178,38 @@ select, input {
   user-select: none;
 }
 
-/* ---- Dashboard top nav (signed-in) — olive bar, fixed, hard shadow (Stitch component) ---- */
+/* ---- Dashboard top nav (signed-in) — ink bar, fixed, hard shadow (Stitch component) ---- */
 .dash-nav {
   position: sticky;
   top: 0;
   z-index: 50;
-  padding: 14px 20px;
+  padding: 14px var(--page-pad);
   margin-bottom: 24px;
-  background: var(--olive);
+  /* Ink, not olive — the olive sat between the cream page and the yellow accent and read as
+     mud. Ink makes the bar a hard frame and lets yellow be the only warm colour up here. */
+  background: var(--ink);
   border-bottom: 2px solid var(--ink);
-  box-shadow: 0 4px 0 0 var(--ink);
+  box-shadow: 0 4px 0 0 rgba(31, 27, 16, 0.25);
 }
 .dash-nav-inner {
-  max-width: 1100px;
+  /* Matches .container's CONTENT box (measure minus its side padding), so the logo and the
+     sign-out button line up with the card edges instead of overhanging them. */
+  max-width: calc(var(--page-w) - var(--page-pad) * 2);
   margin: 0 auto;
   display: flex;
   align-items: center;
   justify-content: space-between;
   gap: 16px;
 }
-.dash-nav .brand { color: #221b00; }
-.dash-nav .brand span { background: var(--ink); color: var(--yellow); }
+.dash-nav .brand { color: var(--bg); }
+.dash-nav .brand span { background: var(--yellow); color: var(--ink); }
 .nav-links { display: flex; gap: 32px; }
 @media (max-width: 720px) { .nav-links { display: none; } }
 .nav-link {
   font-family: var(--body);
   font-weight: 800;
   font-size: 15px;
-  color: rgba(255, 248, 239, 0.72); /* cream on olive — dark-on-olive failed contrast */
+  color: rgba(255, 248, 239, 0.72); /* cream on ink */
   text-decoration: none;
 }
 .nav-link:hover { color: var(--bg); transform: translateY(1px); }
@@ -210,8 +220,9 @@ select, input {
   text-underline-offset: 6px;
   text-decoration-thickness: 3px;
 }
-/* Identity block + bell need light text on the olive bar too */
+/* Identity block + bell need light text on the ink bar too */
 .dash-nav .muted { color: rgba(255, 248, 239, 0.85); }
+.nav-name { font-family: var(--body); font-weight: 800; font-size: 14px; color: var(--bg); }
 .dash-nav .odds { color: var(--yellow); font-family: var(--mono); font-size: 12px; font-weight: 600; }
 .dash-nav .nav-icon-btn { color: var(--bg); }
 .dash-nav .nav-icon-btn:hover { background: rgba(255, 248, 239, 0.15); }
@@ -226,7 +237,8 @@ button.nav-link, button.bn-item {
 }
 button.nav-link:hover { background: transparent; box-shadow: none; }
 button.bn-item:hover { transform: none; box-shadow: none; background: transparent; }
-button.bn-item.active { background: var(--yellow); padding: 4px 16px; box-shadow: 2px 2px 0 0 var(--ink); }
+/* Ink on yellow — inheriting the global button white here was ~1.4:1 and unreadable. */
+button.bn-item.active { background: var(--yellow); color: var(--ink); padding: 4px 16px; box-shadow: 2px 2px 0 0 var(--ink); }
 button.bn-item.active:hover { background: var(--yellow); box-shadow: 2px 2px 0 0 var(--ink); }
 .nav-right { display: flex; align-items: center; gap: 6px; }
 
@@ -261,8 +273,24 @@ button.bn-item.active:hover { background: var(--yellow); box-shadow: 2px 2px 0 0
   flex-direction: column;
   gap: 8px;
 }
-.notif-item { font-size: 13px; border-bottom: 1px dashed var(--muted); padding-bottom: 6px; }
+/* Feed text is user-supplied and can be a single unbroken token (a pasted address, a long
+   URL). Without this the panel is whatever the longest word is. */
+.notif-item {
+  font-size: 13px; border-bottom: 1px dashed var(--muted); padding-bottom: 6px;
+  min-width: 0; overflow-wrap: anywhere;
+}
+.notif-item strong { overflow-wrap: anywhere; }
 .notif-item:last-child { border-bottom: 0; padding-bottom: 0; }
+
+/* A button that reads as a link — for inline escapes out of an empty state. */
+button.link-btn {
+  background: none; border: 0; box-shadow: none; padding: 0;
+  font: inherit; text-transform: none; letter-spacing: normal;
+  color: var(--ink); font-weight: 800; text-decoration: underline;
+  text-decoration-color: var(--yellow-deep); text-decoration-thickness: 2px;
+  text-underline-offset: 3px;
+}
+button.link-btn:hover { background: none; box-shadow: none; transform: none; text-decoration-color: var(--ink); }
 
 .label { font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; }
 .form-error { color: var(--danger); font-weight: 700; font-size: 13px; }
@@ -394,14 +422,30 @@ button.ptype-btn.active { background: var(--yellow); }
 button.ptype-btn.active:hover { background: var(--yellow); }
 
 /* Outcome-card betting metrics */
+/* Backing on this side: a label line over a full-width track. The text sits above the
+   bar, not crushed inside it — a 20px pill was never going to hold two numbers. */
 .pot-share {
+  display: flex;
+  flex-direction: column;
+  gap: 5px;
+  width: 100%;
+}
+.pot-share .label {
+  display: flex;
+  justify-content: space-between;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  color: var(--muted);
+  font-variant-numeric: tabular-nums;
+}
+.pot-share .track {
   position: relative;
-  display: block;
+  height: 8px;
   border: 2px solid var(--ink);
   border-radius: 999px;
   overflow: hidden;
   background: var(--cream-2);
-  height: 20px;
 }
 .pot-share-bar {
   position: absolute;
@@ -412,13 +456,6 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 /* The pot visibly filling as Entries land — scaleX (not width) stays on the compositor. */
 @media (prefers-reduced-motion: no-preference) {
   .pot-share-bar { transition: transform 400ms var(--ease-out); }
-}
-.pot-share .label {
-  position: relative;
-  display: block;
-  text-align: center;
-  line-height: 16px;
-  font-size: 10px;
 }
 .win-preview {
   font-family: var(--display);
@@ -733,6 +770,26 @@ button.ptype-btn.active:hover { background: var(--yellow); }
   background: var(--dots), var(--tint);
 }
 .pool-card.is-open { --tint: #fff8ef; }
+/* MatchCard is a real <button> (keyboard + screen-reader support for a clickable card), so
+   the global `button` rule above applied to it: white text on a white card — every label,
+   title and figure invisible — plus centred, uppercased, 13px type and its own padding.
+   This is a card that happens to be clickable, not a button that looks like a card, so it
+   opts out of the button skin while keeping the element semantics. */
+button.pool-card {
+  color: var(--ink);
+  text-align: left;
+  text-transform: none;
+  letter-spacing: normal;
+  font-size: inherit;
+  font-weight: inherit;
+  padding: 0;
+  width: 100%;
+}
+/* The button skin's hover (translate +2/+2, shadow gone) ran opposite to every other card,
+   which lifts toward its shadow. Match the cards, and give the button a real focus ring —
+   it is keyboard-reachable in a way the old <Link> card was too. */
+button.pool-card:hover { transform: translate(-2px, -2px); box-shadow: 6px 6px 0 0 var(--ink); }
+button.pool-card:focus-visible { outline: 3px solid var(--blue); outline-offset: 3px; }
 .pool-card.is-locked { --tint: var(--tint-locked); }
 .pool-card.is-settled { --tint: var(--tint-settled); }
 .pool-card.is-void { --tint: var(--tint-void); }
@@ -742,23 +799,19 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 }
 .pc-body { padding: 20px; display: flex; flex-direction: column; gap: 16px; flex-grow: 1; }
 .pc-head { display: flex; justify-content: space-between; align-items: flex-start; gap: 10px; border-bottom: 2px solid var(--ink); padding-bottom: 14px; }
-.pc-icon {
+.pc-flags {
   flex: none;
-  width: 48px;
-  height: 48px;
-  display: grid;
-  place-items: center;
-  background: var(--yellow);
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 10px;
+  background: var(--cream-2);
   border: 2px solid var(--ink);
   border-radius: 999px;
   box-shadow: 2px 2px 0 0 var(--ink);
-  color: #fff;
 }
-.pc-icon .msym { font-size: 24px; }
-.pc-icon.sport-0 { background: var(--yellow); color: #fff; }         /* soccer */
-.pc-icon.sport-1 { background: var(--surface-variant, #eae2cf); color: var(--ink); } /* motorsport */
-.pc-icon.sport-2 { background: #f26a1b; color: #fff; }              /* basketball */
-.pc-icon.sport-3 { background: var(--blue); color: #fff; }          /* other */
+.pc-flags .flag { font-size: 22px; line-height: 1; }
+.pc-flags .vs { font-family: var(--display); font-style: italic; font-weight: 900; font-size: 12px; }
 .pc-title { font-family: var(--display); font-style: italic; font-weight: 900; text-transform: uppercase; font-size: 18px; line-height: 1; letter-spacing: -0.02em; }
 .pc-sub { font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; color: var(--muted); margin-top: 4px; }
 /* solid state chip (bright green open, ink locked/settled, red void) */
@@ -846,16 +899,63 @@ button.ptype-btn.active:hover { background: var(--yellow); }
   border-radius: var(--r-sm);
   transform: rotate(-1deg);
 }
+/* Flags carry the matchup — no generic trophy. Each team sits on its own tilted plate. */
+.match-teams { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; }
+.match-teams .team {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  background: var(--yellow);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+  padding: 4px 14px 4px 10px;
+  transform: rotate(-1.5deg);
+}
+.match-teams .team:last-of-type { transform: rotate(1.5deg); }
+.match-teams .flag { font-size: clamp(26px, 3.4vw, 38px); line-height: 1; }
+.match-teams .tname {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: clamp(20px, 3.4vw, 32px);
+  line-height: 1.1;
+}
+.match-teams .vs {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 18px;
+  color: var(--muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .match-teams .team { transition: transform 160ms var(--ease-out); }
+  .match-teams .team:hover { transform: rotate(0deg) scale(1.03); }
+}
+
+/* Prize pot: a torn ticket stub, not a stat box. */
 .prize-tag {
-  background: var(--paper);
+  background: var(--yellow);
   border: 3px solid var(--ink);
   border-radius: var(--r-md);
-  box-shadow: var(--shadow-sm);
-  padding: 10px 18px;
+  box-shadow: var(--shadow);
+  padding: 10px 22px 8px;
   text-align: center;
   transform: rotate(2deg);
 }
-.prize-tag .label { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; }
+.prize-tag .label {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.12em; text-transform: uppercase;
+}
+.prize-foot {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.04em; opacity: 0.7; margin-top: 2px;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .prize-tag .pot { animation: stake-pop 320ms var(--ease-out); }
+}
 .pot {
   font-family: var(--display);
   font-style: italic;
@@ -880,6 +980,21 @@ button.ptype-btn.active:hover { background: var(--yellow); }
   text-align: center;
 }
 .outcome.win { background: var(--yellow); }
+/* Cards you've already backed carry a standing mark; hover lifts the card off the page. */
+.outcome.mine { box-shadow: var(--shadow); border-color: var(--ink); background: var(--cream-2); }
+@media (prefers-reduced-motion: no-preference) {
+  .outcome { transition: transform 140ms var(--ease-out), box-shadow 140ms var(--ease-out); }
+  .outcome:hover { transform: translate(-2px, -2px); box-shadow: var(--shadow); }
+  .outcome.mine:hover { box-shadow: var(--shadow-lg); }
+  /* Restake the number every time the stake changes, so the payout visibly reacts. */
+  .win-preview { animation: stake-pop 260ms var(--ease-out); }
+  @keyframes stake-pop {
+    0% { transform: scale(0.9); opacity: 0.3; }
+    60% { transform: scale(1.06); opacity: 1; }
+    100% { transform: scale(1); }
+  }
+  .position-bar { animation: winner-pop 240ms var(--ease-out); }
+}
 .outcome-label {
   font-family: var(--display);
   font-style: italic;
@@ -896,6 +1011,66 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 /* ---- Pool page layout: main + live chat ---- */
 .pool-layout { display: grid; grid-template-columns: minmax(0, 1fr) 360px; gap: 20px; align-items: start; }
 @media (max-width: 900px) { .pool-layout { grid-template-columns: 1fr; } }
+
+/* Right rail: just the two controls — stake picker and position roll-up. The Room lives
+   in the wide left column, so the rail sizes to its content and sticks while you scroll. */
+.pool-rail {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+  align-self: start;
+  position: sticky;
+  top: 20px;
+}
+.rail-card { margin-bottom: 0; }
+/* Fit the Pool to one screen: the layout claims the viewport below the sticky nav, and
+   The Room absorbs whatever the banner and cards leave over — rather than a guessed vh
+   cap that's wrong on every other screen size. */
+/* The 80px bottom gutter is for scrolling pages; this one is meant to fit. */
+.container:has(.pool-layout) { padding-bottom: 24px; }
+/* The Room on a Pool page is a fixed box that scrolls inside itself. Deliberately NOT
+   flex-sized off the viewport — tying it to leftover space made it grow on tall screens
+   and collapse on short ones. A plain height is predictable and it fits. */
+.pool-layout .room { margin-bottom: 0; }
+/* Fixed 300px — tuned to the demo laptop (~935px viewport) so banner, cards and chat sit
+   on one screen. Not vh-derived: leftover-space sizing grew it on tall screens and
+   collapsed it on short ones. On a much shorter display the page scrolls; adjust here. */
+.pool-layout .room-scroll {
+  /* flex:0 0 300px, not just height — the base rule's `flex: 1` sets flex-basis:0 and
+     grows, which silently overrides `height` in a flex column. */
+  flex: 0 0 300px;
+  height: 300px;
+  min-height: 0;
+  max-height: 300px;
+}
+.rail-title {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 10px;
+  margin: 0 0 10px;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 800;
+  text-transform: uppercase;
+  font-size: 15px;
+}
+.position-list { list-style: none; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 6px; }
+.position-list li {
+  display: grid;
+  /* Side name may wrap ("Argentina win"); min-width:0 lets it, instead of forcing the
+     row wider than the card and clipping the payout. */
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 10px;
+  align-items: baseline;
+  font-size: 13px;
+  font-weight: 700;
+  padding-top: 6px;
+  border-top: 2px dashed rgba(31, 27, 16, 0.14);
+}
+.position-list li:first-child { border-top: 0; padding-top: 0; }
+.position-list .amt { font-family: var(--mono); font-variant-numeric: tabular-nums; }
+.position-list .pays { font-family: var(--mono); color: var(--green); font-variant-numeric: tabular-nums; }
 
 /* ---- Proof Receipt: the hero — split panel, yellow PROVEN side + paper receipt side ---- */
 .receipt-split { display: grid; grid-template-columns: minmax(200px, 2fr) 3fr; margin-bottom: 20px; border: 4px solid var(--ink); border-radius: var(--r-md); box-shadow: var(--shadow-lg); overflow: hidden; background: var(--paper); }
@@ -931,13 +1106,83 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 .receipt-label { font-family: var(--mono); font-size: 10px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase; color: var(--muted); }
 .receipt-strong { font-size: 18px; font-weight: 800; }
 .mono { font-family: var(--mono); font-size: 12px; font-weight: 600; word-break: break-all; color: var(--ink); }
+/* Raw chain values. Paper, not yellow — this is evidence a fan can look up, not the verdict.
+   Filling it with the brand accent made the least important content shout the loudest. */
 .receipt-bar {
   display: block;
-  background: var(--yellow);
-  border: 2px solid var(--ink);
+  background: var(--paper);
+  border: 2px solid rgba(31, 27, 16, 0.25);
   border-radius: 4px;
-  padding: 4px 8px;
-  margin-top: 3px;
+  padding: 6px 10px;
+  margin-top: 4px;
+}
+/* Only the things you can actually click carry the accent, and only on the edge. */
+a.receipt-bar {
+  border-color: var(--ink);
+  border-left: 4px solid var(--yellow);
+  text-decoration: none;
+  color: var(--ink);
+}
+a.receipt-bar:hover { background: var(--cream-2); border-left-color: var(--yellow-deep); }
+
+/* Result strip in the PROVEN banner — fills a bar that was ~80% empty yellow. */
+.proven-score { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.proven-team {
+  font-family: var(--body); font-weight: 800; font-size: 14px; color: var(--ink);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+}
+.proven-digits {
+  background: var(--ink); color: var(--yellow);
+  font-family: var(--mono); font-weight: 700; font-size: 15px;
+  font-variant-numeric: tabular-nums;
+  padding: 3px 10px; border-radius: 4px; white-space: nowrap;
+}
+
+/* The disclosure into the chain detail. It has to look pressable without shouting over the
+   verification banner above it — so: dashed, paper-toned, no fill until hover. */
+.proof-toggle {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  align-items: center;
+  gap: 2px 12px;
+  width: 100%;
+  padding: 10px 14px;
+  text-align: left;
+  background: transparent;
+  border: 2px dashed rgba(31, 27, 16, 0.35);
+  border-radius: var(--r-sm);
+  box-shadow: none;
+  text-transform: none;
+  letter-spacing: normal;
+}
+.proof-toggle:hover { background: var(--cream-2); border-style: solid; box-shadow: none; transform: none; }
+.proof-toggle-label {
+  font-family: var(--body); font-weight: 800; font-size: 14px; color: var(--ink);
+}
+.proof-toggle-hint {
+  grid-column: 1; font-family: var(--mono); font-size: 11px; color: var(--muted);
+}
+/* The chevron is the affordance — it spans both rows and points down when open. */
+.proof-chevron {
+  grid-column: 2; grid-row: 1 / span 2;
+  font-size: 22px; font-weight: 800; line-height: 1; color: var(--muted);
+}
+.proof-toggle[data-state="open"] .proof-chevron { transform: rotate(90deg); }
+/* Open, the toggle becomes the lid of the panel rather than a floating box above it. */
+.proof-toggle[data-state="open"] {
+  border-style: solid;
+  border-bottom-color: transparent;
+  border-radius: var(--r-sm) var(--r-sm) 0 0;
+}
+.proof-toggle[data-state="open"] + .proof-detail {
+  border: 2px solid rgba(31, 27, 16, 0.35);
+  border-top: 0;
+  border-radius: 0 0 var(--r-sm) var(--r-sm);
+  background: var(--cream-2);
+}
+.proof-detail .receipt-label { margin-top: 2px; }
+@media (prefers-reduced-motion: no-preference) {
+  .proof-chevron { transition: transform 180ms var(--ease-out); }
 }
 
 /* ---- Client-side verification banner ---- */
@@ -1092,14 +1337,26 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 .room-empty p { max-width: 380px; margin: 0 auto; }
 
 /* A speaker turn: avatar + column of bubbles. Mine hug the right in yellow. */
-.turn { display: flex; gap: 10px; align-items: flex-end; }
+/* Top-aligned, not bottom: .react-row always renders (it carries the "＋" picker), so the
+   column's bottom edge sits below the bubble and a bottom-aligned avatar floated down with
+   it, detached from the message it belongs to. */
+.turn { display: flex; gap: 10px; align-items: flex-start; }
 .turn.mine { justify-content: flex-end; }
-.turn-avatar { width: 30px; height: 30px; font-size: 14px; flex: 0 0 auto; }
+/* The avatar is only ever visible on a new speaker, which is exactly when .bubble-meta
+   renders — so clearing one fixed meta line always lands it beside the bubble. */
+.turn-avatar {
+  width: 30px; height: 30px; font-size: 14px; flex: 0 0 auto;
+  margin-top: calc(var(--bubble-meta-h) + 3px); /* + .bubble-col gap */
+}
 /* Runs keep the avatar's width so bubbles stay in one column, but hide the glyph. */
 .turn-avatar.hidden { visibility: hidden; }
 .bubble-col { display: flex; flex-direction: column; gap: 3px; max-width: 78%; min-width: 0; }
 .turn.mine .bubble-col { align-items: flex-end; }
-.bubble-meta { font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted); }
+/* Pinned line-height: .turn-avatar offsets by exactly this to line up with the bubble. */
+.bubble-meta {
+  font-family: var(--mono); font-size: 11px; font-weight: 700; color: var(--muted);
+  line-height: var(--bubble-meta-h);
+}
 .bubble-time { font-weight: 400; opacity: 0.7; margin-left: 4px; }
 .bubble {
   background: var(--cream-2);
@@ -1139,17 +1396,33 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 
 /* Reactions clamp onto a message: sticker pills + a peel-out "＋" picker, under the bubble. */
 .react-row { display: flex; align-items: center; gap: 5px; flex-wrap: wrap; margin-top: 4px; }
+/* Pills overlap like a sticker stack rather than sitting in a spaced row — each one tucks
+   under the previous, and lifts clear on hover/focus so its count stays readable. */
+.react-pill + .react-pill { margin-left: -10px; }
+.react-pill:hover, .react-pill:focus-visible { z-index: 2; }
+/* The ＋ needs its own breathing room; it is not part of the stack. */
+.react-pill + .react-add-wrap { margin-left: 5px; }
 .react-row.mine { justify-content: flex-end; }
 /* Runs align pills under the bubble body, not under where the avatar would be. */
 .turn:not(.mine) .react-row { padding-left: 2px; }
+/* With no reactions yet the row held ~28px of empty space under every single message. Where
+   the ＋ is hover-only it can overlay that gap instead of reserving it; touch keeps the space
+   because there the ＋ is always visible and must not sit on top of the next message. */
+@media (hover: hover) and (pointer: fine) {
+  .react-row.bare { height: 0; margin-top: 0; overflow: visible; }
+}
 
 .react-pill {
+  position: relative;
   display: inline-flex;
   align-items: center;
   gap: 4px;
   padding: 1px 8px 1px 6px;
   min-height: 24px;
   background: var(--paper);
+  /* The global button rule paints text white; on this cream pill that hid the count
+     entirely (the emoji still showed, carrying its own colour). */
+  color: var(--ink);
   border: 2px solid var(--ink);
   border-radius: 999px;
   box-shadow: 1px 1px 0 0 var(--ink);
@@ -1429,17 +1702,45 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 @keyframes live-pulse { 50% { opacity: 0.35; } }
 @media (prefers-reduced-motion: reduce) { .live-dot { animation: none; } }
 
-/* LIVE tag on Reference Odds when the real StablePrice stream is feeding them. */
+/* Live marker on Reference Odds when the real StablePrice stream is feeding them.
+   A pulsing dot rather than a LIVE word — the card had too much text to read at a glance. */
 .odds-live {
-  display: inline-block; margin-right: 6px; padding: 0 5px;
-  background: var(--danger); color: #fff; border: 2px solid var(--ink);
-  font-family: var(--font-mono), monospace; font-size: 10px; font-weight: 700; letter-spacing: 0.08em;
+  width: 8px; height: 8px; border-radius: 50%;
+  background: var(--danger); border: 2px solid var(--ink);
+  flex: none; align-self: center;
 }
+@media (prefers-reduced-motion: no-preference) {
+  .odds-live { animation: live-pulse 1.6s ease-in-out infinite; }
+}
+
+/* Hero odds: the one number worth reading first on an Outcome card. */
+.odds-hero {
+  display: inline-flex; align-items: baseline; gap: 5px;
+  font-family: var(--display); font-weight: 800; font-style: italic;
+  font-size: 30px; line-height: 1; font-variant-numeric: tabular-nums;
+}
+.odds-hero .odds-unit {
+  font-family: var(--mono); font-style: normal; font-size: 11px;
+  font-weight: 700; letter-spacing: 0.06em; text-transform: uppercase; color: var(--muted);
+}
+@media (prefers-reduced-motion: no-preference) {
+  .odds-hero { animation: stake-pop 300ms var(--ease-out); }
+}
+
+/* Your standing stake on this side — a badge, not another sentence. */
+.mine-tag {
+  font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.04em;
+  padding: 2px 7px; border: 2px solid var(--ink); border-radius: 999px;
+  background: var(--yellow);
+}
+/* Placeholder keeps the row height so unbacked cards align with backed ones. */
+.mine-tag.empty { background: transparent; border-color: transparent; color: var(--muted); }
 
 /* Group leaderboard — season standings from settled Pools. */
 .lb-table { display: flex; flex-direction: column; }
 .lb-row {
-  display: grid; grid-template-columns: 32px 1fr auto auto; align-items: center; gap: 12px;
+  /* rank | face | name | record | net — the face is a track, not an overflow. */
+  display: grid; grid-template-columns: 32px auto minmax(0, 1fr) auto auto; align-items: center; gap: 12px;
   padding: 10px 4px; border-bottom: 2px dashed rgba(31,27,16,0.14);
 }
 .lb-row:last-child { border-bottom: 0; }
@@ -1447,7 +1748,7 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 .lb-name { font-weight: 800; min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .lb-streak { margin-left: 8px; font-size: 12px; font-weight: 700; }
 .lb-record { font-family: var(--font-mono), monospace; font-size: 12px; font-weight: 600; color: var(--muted, #4d4632); }
-.lb-net { font-family: var(--font-mono), monospace; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
+.lb-net { white-space: nowrap; font-family: var(--font-mono), monospace; font-weight: 800; font-size: 15px; font-variant-numeric: tabular-nums; }
 .lb-net.up { color: var(--good, #00873c); }
 .lb-net.down { color: var(--danger, #d32f2f); }
 
@@ -1542,10 +1843,398 @@ button.ptype-btn.active:hover { background: var(--yellow); }
   padding: 16px 18px;
 }
 
+/* Profit/loss per settled Pool. Bars, not a line: a line needs a trend, and one
+   result has none — it just draws a meaningless diagonal. */
+.net-bars {
+  position: relative;
+  display: flex; align-items: center; gap: 6px;
+  height: 64px; margin-top: 10px;
+}
+.net-bars .zero {
+  position: absolute; left: 0; right: 0; top: 50%;
+  border-top: 2px dashed rgba(31, 27, 16, 0.25);
+}
+.net-bars .nb { position: relative; width: 14px; display: flex; }
+.net-bars .stem {
+  position: absolute; left: 0; width: 100%;
+  border: 2px solid var(--ink); border-radius: 4px;
+}
+.net-bars .nb.up .stem { bottom: 50%; background: var(--green); }
+.net-bars .nb.down .stem { top: 50%; background: var(--danger); }
+@media (prefers-reduced-motion: no-preference) {
+  .net-bars .stem { animation: bar-grow 480ms var(--ease-out) both; }
+  .net-bars .nb:nth-child(3) .stem { animation-delay: 60ms; }
+  .net-bars .nb:nth-child(4) .stem { animation-delay: 120ms; }
+  .net-bars .nb:nth-child(5) .stem { animation-delay: 180ms; }
+  .net-bars .nb:nth-child(6) .stem { animation-delay: 240ms; }
+  .net-bars .nb:nth-child(7) .stem { animation-delay: 300ms; }
+  .net-bars .nb:nth-child(8) .stem { animation-delay: 360ms; }
+  @keyframes bar-grow { from { transform: scaleY(0); } to { transform: scaleY(1); } }
+}
+.net-bars .nb.up .stem { transform-origin: bottom; }
+.net-bars .nb.down .stem { transform-origin: top; }
+
+/* Record: hit rate as a meter, so the W/L split reads without arithmetic. */
+.hit-meter { display: flex; flex-direction: column; gap: 6px; margin-top: 10px; }
+/* Radix Progress (shadcn) supplies role/aria-valuenow; the sticker skin is ours. */
+.hit-meter .track {
+  height: 14px;
+  border: 2px solid var(--ink); border-radius: 999px;
+  background: var(--cream-2); overflow: hidden;
+}
+.hit-meter [data-slot="progress"] { background: transparent; }
+.hit-meter [data-slot="progress-indicator"] {
+  background: repeating-linear-gradient(
+    -45deg,
+    var(--green) 0 6px,
+    color-mix(in srgb, var(--green) 78%, #fff) 6px 12px
+  );
+}
+@media (prefers-reduced-motion: reduce) {
+  .hit-meter [data-slot="progress-indicator"] { transition: none; }
+}
+.hit-meter .wl {
+  display: flex; justify-content: space-between;
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+}
+.hit-meter .w { color: var(--green); }
+.hit-meter .l { color: var(--muted); }
+
+/* Streak strip: one slot per settled call, lit when it hit. Shape (filled vs hollow)
+   carries the result, not colour alone. */
+.streak-stat { grid-column: span 2; }
+@media (max-width: 620px) { .streak-stat { grid-column: auto; } }
+.streak-strip { list-style: none; display: flex; gap: 8px; margin: 10px 0 0; padding: 0; }
+.streak-strip li {
+  display: flex; flex-direction: column; align-items: center; gap: 4px;
+}
+.streak-strip .slot-mark {
+  width: 34px; height: 34px;
+  display: grid; place-items: center;
+  border: 2px solid var(--ink); border-radius: 50%;
+  font-size: 16px; line-height: 1;
+}
+.streak-strip .slot-num {
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  letter-spacing: 0.04em; color: var(--muted);
+}
+.streak-strip li.hit .slot-mark { background: var(--yellow); box-shadow: 2px 2px 0 0 var(--ink); }
+/* Bets you haven't placed yet — faint, so the strip reads as a card to fill in. */
+.streak-strip li.pending .slot-mark {
+  background: transparent; border-style: dashed; border-color: rgba(31, 27, 16, 0.3);
+}
+.streak-strip li.pending .slot-num { opacity: 0.45; }
+@media (prefers-reduced-motion: no-preference) {
+  .streak-strip li.hit .slot-mark { animation: stake-pop 320ms var(--ease-out) both; }
+  /* Delay belongs on the animated element, not its <li> — same as .net-bars .stem above. */
+  .streak-strip li:nth-child(2) .slot-mark { animation-delay: 40ms; }
+  .streak-strip li:nth-child(3) .slot-mark { animation-delay: 80ms; }
+  .streak-strip li:nth-child(4) .slot-mark { animation-delay: 120ms; }
+  .streak-strip li:nth-child(5) .slot-mark { animation-delay: 160ms; }
+  .streak-strip li:nth-child(6) .slot-mark { animation-delay: 200ms; }
+  .streak-strip li:nth-child(7) .slot-mark { animation-delay: 240ms; }
+}
+
+/* Every stat carries a plain-language caption — the number alone doesn't say what it means. */
+.stat-foot {
+  font-family: var(--mono); font-size: 10px; font-weight: 700;
+  letter-spacing: 0.03em; color: var(--muted); margin-top: 2px;
+}
+.section-title {
+  margin: 0 0 10px;
+  font-family: var(--display); font-style: italic; font-weight: 800;
+  text-transform: uppercase; font-size: 14px; letter-spacing: 0.02em;
+}
+/* Sign out lives with identity, not floating at the bottom of the page. */
+.profile-signout { margin-left: auto; align-self: flex-start; }
+
+.wallet-card {
+  background: var(--cream-2);
+  border: 3px solid var(--ink); border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+  padding: 16px 18px;
+  display: flex; flex-direction: column; gap: 12px;
+}
+/* Three equal columns — balance, fees, address — so the card fills its width instead of
+   huddling in the left third with dead space beside it. */
+/* No `align-items: start` — the three cells stretch to the tallest so their borders line up. */
+.wallet-card .pc-cells { grid-template-columns: repeat(3, minmax(0, 1fr)); }
+.wallet-card .wallet-id { display: flex; flex-direction: column; gap: 8px; min-width: 0; }
+.wallet-card .wallet-id .wallet-row { display: flex; flex-wrap: wrap; gap: 8px; }
+@media (max-width: 860px) { .wallet-card .pc-cells { grid-template-columns: 1fr; } }
+.wallet-card .pc-cell { display: flex; flex-direction: column; }
+/* Address chip + actions on one line. No pill-inside-a-pill — the global button style
+   already carries a 3px border and shadow, which fought the wrapper. */
+button.deposit-btn {
+  margin-top: 10px;
+  width: 100%;
+  padding: 8px 12px;
+  background: var(--yellow); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: var(--r-sm);
+  box-shadow: 2px 2px 0 0 var(--ink);
+  font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.06em;
+}
+button.deposit-btn:hover { background: var(--yellow-deep); }
+/* Loud enough to notice, quiet enough not to be an error state — the room still works. */
+.room-degraded {
+  margin: 0 0 10px;
+  padding: 8px 12px;
+  background: var(--tint-void);
+  border: 2px dashed var(--ink); border-radius: var(--r-sm);
+  font-family: var(--mono); font-size: 11px; font-weight: 700; line-height: 1.5;
+}
+.room-degraded code { font-size: 11px; }
+
+/* Deposit panel: the embedded wallet's own address as a QR. No bridge, so nothing to fail. */
+.deposit-modal {
+  max-width: 380px;
+  align-items: center;
+  gap: 14px;
+  padding: 24px;
+  border-radius: var(--r-md);
+  text-align: center;
+}
+.deposit-title {
+  margin: 0;
+  font-family: var(--display); font-style: italic; font-weight: 900;
+  text-transform: uppercase; font-size: 22px;
+}
+.qr-frame {
+  background: #fff;
+  border: 3px solid var(--ink); border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+  padding: 12px; line-height: 0;
+}
+.deposit-hint { margin: 0; font-size: 13px; font-weight: 600; color: var(--muted); }
+.deposit-status {
+  margin: 0;
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  color: var(--muted);
+}
+.deposit-status.arrived { color: var(--green); }
+@media (prefers-reduced-motion: no-preference) {
+  .deposit-status:not(.arrived) { animation: live-pulse 1.6s ease-in-out infinite; }
+  .deposit-status.arrived { animation: winner-pop 260ms var(--ease-out); }
+}
+
+.deposit-note {
+  display: block; margin-top: 6px;
+  font-family: var(--mono); font-size: 9px; font-weight: 700;
+  line-height: 1.4; color: var(--muted);
+}
+
+.wallet-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+button.addr-btn {
+  display: inline-flex; align-items: stretch; gap: 0;
+  padding: 0; overflow: hidden;
+  background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+}
+button.addr-btn code {
+  font-family: var(--mono); font-size: 13px; font-weight: 700;
+  padding: 9px 14px;
+  /* Base58 is case-sensitive — the global button uppercase would misrepresent the key. */
+  text-transform: none;
+}
+button.addr-btn .addr-action {
+  display: grid; place-items: center;
+  min-width: 78px; padding: 0 12px;
+  background: var(--ink); color: var(--yellow);
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+}
+button.addr-btn:hover { transform: translate(2px, 2px); box-shadow: none; }
+button.addr-btn:hover .addr-action { background: var(--yellow); color: var(--ink); }
+button.addr-btn.copied .addr-action { background: var(--green); color: #fff; }
+@media (prefers-reduced-motion: no-preference) {
+  button.addr-btn:active { transform: translate(2px, 2px) scale(0.97); }
+  button.addr-btn .addr-action { transition: background 120ms var(--ease-out), color 120ms var(--ease-out); }
+  /* The label text swaps instantly; the pop is what reads as "it took". */
+  button.addr-btn.copied .addr-action { animation: stake-pop 260ms var(--ease-out); }
+}
+/* Sits beside the address button, so it wears the same skin — a default blue link
+   next to a sticker button reads as unstyled markup. */
+.explorer-link {
+  display: inline-flex; align-items: center; gap: 6px;
+  padding: 9px 14px;
+  background: var(--paper); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: var(--r-sm);
+  box-shadow: var(--shadow-sm);
+  font-family: var(--mono); font-size: 11px; font-weight: 700;
+  letter-spacing: 0.06em; text-transform: uppercase;
+  text-decoration: none;
+}
+@media (prefers-reduced-motion: no-preference) {
+  .explorer-link { transition: transform 120ms ease, box-shadow 120ms ease, background 120ms ease; }
+}
+.explorer-link:hover { background: var(--yellow); transform: translate(2px, 2px); box-shadow: none; }
+
 .player-stat.skeleton { height: 66px; background: var(--cream-2); box-shadow: none; }
 @media (prefers-reduced-motion: no-preference) {
   .player-stat.skeleton { animation: profile-skeleton 1.2s ease-in-out infinite; }
   @keyframes profile-skeleton { 50% { opacity: 0.5; } }
+}
+
+/* Facehash identity faces (components/Avatars.tsx). The .face chip owns the ring, so the
+ * legacy initials-circle wrappers stand down to plain layout boxes when they hold one. */
+.face {
+  flex: 0 0 auto;
+  display: block;
+  overflow: hidden;
+  border: 2px solid var(--ink);
+  border-radius: 999px;
+  /* No background here: facehash paints a per-identity colour on its own root, and a fill
+     on this wrapper covered it — which made every avatar render as the same blank disc. */
+}
+.face > * { display: block; width: 100%; height: 100%; }
+.friend-avatar:has(.face),
+.room-presence-dot:has(.face) { background: none; border: 0; width: auto; height: auto; }
+/* Stacked faces: the ring and fill come from .face, so .avatar is layout only. */
+.avatar:has(.face) { background: none; border: 0; width: auto; height: auto; }
+
+/* Stake picker — the rail's hero control. It sets the number every BACK button spends and
+   every win preview projects, so it carries the yellow hero surface and the deep shadow
+   rather than reading as a third quiet white panel. */
+.stake-card {
+  background: var(--yellow);
+  border-width: 4px;
+  box-shadow: 8px 8px 0 0 var(--ink);
+}
+.stake-title {
+  margin: 0;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: 26px;
+  letter-spacing: -0.01em;
+}
+.stake-hint {
+  margin: 2px 0 14px;
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.stake-chips { display: grid; grid-template-columns: repeat(4, 1fr); gap: 8px; }
+.stake-chip {
+  /* 44px tall: a money control has to clear the touch-target floor. */
+  min-height: 44px;
+  padding: 0;
+  background: var(--paper);
+  color: var(--ink);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-md);
+  box-shadow: 3px 3px 0 0 var(--ink);
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 19px;
+}
+.stake-chip:hover { transform: translate(1px, 1px); box-shadow: 2px 2px 0 0 var(--ink); }
+/* Selected state is border weight + inset ring + label, not fill alone — the card is
+   already yellow, so a yellow "active" chip would vanish (CLAUDE.md: never color-only). */
+.stake-chip.active {
+  background: var(--ink);
+  color: var(--yellow);
+  box-shadow: 3px 3px 0 0 var(--ink);
+  transform: none;
+}
+.stake-chip.active:hover { transform: none; box-shadow: 3px 3px 0 0 var(--ink); }
+.stake-custom { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-top: 14px; }
+.stake-field {
+  display: inline-flex;
+  align-items: center;
+  gap: 2px;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-md);
+  box-shadow: 3px 3px 0 0 var(--ink);
+  padding: 6px 12px;
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  font-size: 21px;
+}
+.stake-field:focus-within { box-shadow: 0 0 0 3px var(--blue), 3px 3px 0 0 var(--ink); }
+.stake-field input {
+  width: 74px;
+  min-height: 32px;
+  padding: 0;
+  border: 0;
+  background: none;
+  box-shadow: none;
+  font: inherit;
+  text-align: right;
+}
+.stake-field input:focus { outline: none; } /* the ring lives on .stake-field */
+@media (prefers-reduced-motion: no-preference) {
+  .stake-chip { transition: transform 100ms ease, box-shadow 100ms ease; }
+}
+
+/* Settled result — the payoff moment. It leads with what happened to YOU; the winning
+   Outcome itself is restated by the Proof Receipt directly below, so this card doesn't
+   repeat it as a headline. Win/loss is carried by sticker + wording + fill, never fill
+   alone (CLAUDE.md: state is never colour-only). */
+.result-card {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  flex-wrap: wrap;
+  padding: 20px 22px;
+  background: var(--paper);
+  border: 4px solid var(--ink);
+  border-radius: var(--r-lg, 18px);
+  box-shadow: 8px 8px 0 0 var(--ink);
+}
+.result-card.is-win { background: var(--yellow); }
+.result-card.is-lost { background: var(--cream-2); }
+.result-sticker {
+  flex: none;
+  font-size: 34px;
+  line-height: 1;
+  transform: rotate(-8deg);
+}
+.result-body { flex: 1; min-width: 200px; display: flex; flex-direction: column; gap: 2px; }
+.result-kicker {
+  font-family: var(--mono);
+  font-size: 11px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--muted);
+}
+.result-headline {
+  font-family: var(--display);
+  font-style: italic;
+  font-weight: 900;
+  text-transform: uppercase;
+  font-size: clamp(26px, 4vw, 38px);
+  line-height: 1;
+  letter-spacing: -0.02em;
+}
+.result-sub { font-size: 14px; font-weight: 600; color: var(--muted); }
+.result-tag {
+  flex: none;
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-transform: uppercase;
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: 999px;
+  box-shadow: 3px 3px 0 0 var(--ink);
+  padding: 8px 14px;
+}
+/* The win lands with a small pop, once — reduced motion gets it instantly instead. */
+@media (prefers-reduced-motion: no-preference) {
+  .result-card.is-win { animation: result-pop 320ms cubic-bezier(0.2, 1.3, 0.4, 1) both; }
+  @keyframes result-pop {
+    from { transform: scale(0.96) rotate(-0.6deg); opacity: 0; }
+    to { transform: none; opacity: 1; }
+  }
 }
 
 /* A Match card lists its markets, so the fan sees the whole match, not one question. */
@@ -1584,3 +2273,125 @@ button.ptype-btn.active:hover { background: var(--yellow); }
 .match-receipt-hero-caption { margin: 0; font-size: 13px; font-weight: 600; opacity: 0.75; }
 
 .market-link { font-size: 12px; font-weight: 600; text-decoration: underline; }
+
+/* ---- Match page: the Room is a sticky right rail ---- */
+/* PoolView pins its Room to 300px so that page fits one screen. A Match page is long — many
+   markets — so here the Room sticks alongside and fills the viewport instead. */
+/* The Room matches the height of the markets beside it. The base .pool-layout sets
+   `align-items: start`, which sizes each column to its own content — that is what left the
+   Room short. Stretching the grid row is what makes siblings equal, so no viewport maths is
+   involved and nothing can overflow the screen. */
+/* The header's middle slot: a countdown before kickoff, the live scoreline during. Centred
+   and allowed to grow, so the band never reads as two islands with a void between them. */
+.match-status {
+  flex: 1 1 auto;
+  display: flex;
+  justify-content: center;
+  min-width: 0;
+}
+.match-status .live-strip { margin: 0; }
+.kickoff-line {
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: var(--muted);
+}
+.kickoff-line strong { color: var(--ink); }
+/* Below the grid breakpoint the banner wraps; let the slot take its own line rather than
+   squeezing between the teams plate and the prize tag. */
+@media (max-width: 700px) {
+  .match-status { flex-basis: 100%; justify-content: flex-start; }
+}
+
+/* On a Match the banner is a full-width header BAND, not two islands floating at either end
+   of an empty strip. Same surface as the panels below it so the page reads as three stacked
+   cards. `:has` scopes this to the Match page — the Pool page keeps its bare banner.
+   (Precedent: `.container:has(.pool-layout)` above.) */
+.match-banner:has(+ .match-layout) {
+  background: var(--paper);
+  border: 3px solid var(--ink);
+  border-radius: var(--r-md);
+  box-shadow: var(--shadow);
+  padding: 18px 20px;
+}
+.match-banner + .pool-layout { margin-top: 18px; }
+.match-layout { align-items: stretch; }
+/* `.panel` carries a 20px bottom margin for stacked pages. On the last panel of this column
+   that margin is invisible but still real, so the grid row ran 20px taller than the panel's
+   border — and the Room, which stretches to the row, ended 20px past it. Drop it here. */
+.match-layout .stack > .panel:last-child { margin-bottom: 0; }
+.match-layout .room {
+  height: auto;
+  max-height: none;
+  margin-bottom: 0;
+  display: flex;
+  flex-direction: column;
+}
+/* The message list absorbs whatever the header and composer leave over. `min-height: 0` is
+   required — a flex item defaults to min-content, which would push the composer off the
+   bottom instead of letting this scroll internally. */
+.match-layout .room-scroll {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 0;
+  max-height: none;
+}
+@media (max-width: 900px) {
+  /* Single column below the grid breakpoint: unstick it and let it size to content. */
+  .match-layout { align-items: start; }
+  .match-layout .room { max-height: none; }
+  .match-layout .room-scroll { flex: 0 0 320px; height: 320px; max-height: 320px; }
+}
+
+/* Read-only Room. Sits under the header, not where the composer was: a lock at the bottom is
+   only met after scrolling past everything, which is why it read as unexplained. The composer
+   is removed outright rather than disabled — a dead input invites typing. */
+.room-locked {
+  flex: 0 0 auto;
+  margin: 0 0 10px;
+  padding: 10px 14px;
+  background: var(--cream-2);
+  border: 2px solid var(--ink);
+  border-radius: var(--r-sm);
+  font-family: var(--mono);
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  color: var(--ink);
+}
+
+/* Line slider — one market section covers every Line, instead of a section per Line. */
+.line-picker { display: flex; align-items: center; gap: 12px; margin: 0 0 12px; }
+/* The Slider is the shadcn/Radix component (components/ui/slider.tsx), which brings its own
+   track/range/thumb styling — this only has to give it the row width. */
+.line-range { flex: 1 1 auto; min-width: 0; }
+.line-value {
+  flex: 0 0 auto; min-width: 56px; text-align: center;
+  background: var(--yellow); border: 2px solid var(--ink); border-radius: var(--r-sm);
+  padding: 2px 10px;
+  font-family: var(--mono); font-size: 14px; font-weight: 800;
+  font-variant-numeric: tabular-nums;
+}
+/* Lines that already hold money. Always visible, so a Pool is never stranded behind a
+   slider nobody thought to drag. */
+.line-open-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; margin: 0 0 12px; }
+.line-open-label { font-family: var(--mono); font-size: 10px; font-weight: 700; text-transform: uppercase; letter-spacing: 0.06em; color: var(--muted); }
+button.line-chip {
+  background: var(--cream-2); color: var(--ink);
+  border: 2px solid var(--ink); border-radius: 999px;
+  padding: 2px 10px; box-shadow: none;
+  font-family: var(--mono); font-size: 11px; font-weight: 700; text-transform: none; letter-spacing: normal;
+}
+button.line-chip.active { background: var(--yellow); }
+button.line-chip:hover { background: var(--yellow); box-shadow: none; transform: none; }
+
+/* Right column is two sections: the stake control, then the Room. The Room takes whatever
+   the stake card leaves, so the pair still ends level with the markets beside them. */
+.match-rail { display: flex; flex-direction: column; gap: 18px; min-height: 0; }
+.match-rail .room { flex: 1 1 auto; min-height: 0; margin-bottom: 0; }
+.match-stake { flex: 0 0 auto; margin-bottom: 0; }
+/* No layout overrides here on purpose. `.stake-card` (above) already lays this out — grid
+   chips, 44px touch targets, a space-between Custom row with a 74px field. Re-specifying it
+   for the rail only broke it: `width: 100%` on the input let it collapse to nothing. */
