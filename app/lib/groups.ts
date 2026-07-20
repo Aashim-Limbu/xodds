@@ -107,6 +107,20 @@ async function api<T>(path: string, token: string, body: unknown): Promise<T> {
 export const upsertMe = (token: string, name: string, email: string | null) =>
   api<{ ok: true }>("/api/me", token, { name, email });
 
+/** Record a Fixture's teams so a settled Pool can still name its match — TxLINE forgets a
+ * Fixture the moment it kicks off (see supabase/setup.sql). Write-once server-side. */
+export const recordFixture = (
+  token: string,
+  f: { fixtureId: bigint; home: string; away: string; kickoff: number; competition?: string },
+) =>
+  api<{ ok: true }>("/api/fixtures", token, {
+    fixtureId: f.fixtureId.toString(),
+    home: f.home,
+    away: f.away,
+    kickoff: f.kickoff,
+    competition: f.competition,
+  });
+
 export async function createGroupApi(token: string, name: string): Promise<Group> {
   const g = await api<Group>("/api/groups", token, { name });
   cacheGroup(g);
@@ -187,6 +201,21 @@ export async function fetchInvites(wallet: string): Promise<GroupInvite[]> {
 /** The Group's roster (members + pending invites), oldest first, with profile names. */
 export async function fetchMembers(groupId: string): Promise<GroupMember[]> {
   if (!supabase) return [];
+  // Global is the open market — everyone with an account is already in it, and nobody ever
+  // inserts a group_members row for it. Reading membership there listed almost nobody.
+  // ponytail: whole registry, newest first, capped at 200. Paginate if signups outgrow that.
+  if (groupId === GLOBAL_GROUP.id) {
+    const { data } = await supabase
+      .from("users")
+      .select("wallet, display_name")
+      .order("wallet", { ascending: true })
+      .limit(200);
+    return (data ?? []).map((u) => ({
+      wallet: u.wallet,
+      status: "member" as const,
+      name: u.display_name || `${u.wallet.slice(0, 6)}…`,
+    }));
+  }
   const { data } = await supabase
     .from("group_members")
     .select("wallet, status")

@@ -79,6 +79,26 @@ alter table group_members enable row level security;
 drop policy if exists "members are public" on group_members;
 create policy "members are public" on group_members for select using (true);
 
+-- ---- Fixture name book ----
+-- TxLINE's /fixtures/snapshot only lists UPCOMING matches: once a Fixture kicks off it stops
+-- being resolvable, and the scores feed carries numeric participant ids, not names. That is
+-- exactly when a Pool settles and the Proof Receipt needs "Argentina 4-6 Brazil" — without
+-- this table every settled receipt degrades to "Away win", including public share links
+-- opened by someone who never saw the Pool while it was Open.
+-- Rows are written when a Pool is created (the client still has the Fixture then), via the
+-- verified /api/fixtures route — anon inserts would let anyone rename the match a receipt
+-- claims to prove, so there is no insert policy here.
+create table if not exists fixtures (
+  fixture_id text primary key,   -- TxLINE FixtureId, as a string (bigint overflows JSON)
+  home text not null,
+  away text not null,
+  kickoff bigint not null,
+  competition text
+);
+alter table fixtures enable row level security;
+drop policy if exists "fixtures are public" on fixtures;
+create policy "fixtures are public" on fixtures for select using (true);
+
 -- Live leaderboard updates need the table in the realtime publication; adding twice errors,
 -- so guard it. group_members is published too so invites appear in the rail in realtime.
 do $$ begin
