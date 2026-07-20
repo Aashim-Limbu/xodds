@@ -71,7 +71,16 @@ export function NotificationsBell({
           )}
           {latest.map((e) => (
             <div key={e.id} className="notif-item">
-              {e.kind === "system" ? e.text : <><strong>{e.author}</strong> {e.text}</>}
+              {/* A reaction's `author` is the wallet, not a name — it's the dedupe identity
+                  (lib/feed.ts), and the Feed renders reactions as anonymous pills. Printing it
+                  here leaked a raw base58 key across the panel. */}
+              {e.kind === "system" ? (
+                e.text
+              ) : e.kind === "reaction" ? (
+                <>{e.text} someone reacted</>
+              ) : (
+                <><strong>{e.author}</strong> {e.text}</>
+              )}
             </div>
           ))}
         </div>

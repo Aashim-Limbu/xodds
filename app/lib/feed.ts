@@ -32,6 +32,9 @@ export async function fetchLatestActivity(channelKeys: string[]): Promise<Map<st
 export interface FeedApi {
   enabled: boolean;
   ready: boolean;
+  /** History couldn't be read (missing table/column) — the room is live-only. Surfaced in
+   * the UI because silently losing the record has cost us a room's history twice. */
+  degraded: boolean;
   events: FeedEvent[];
   present: string[]; // display names currently on this channel
   sendMessage: (text: string) => void;
@@ -43,9 +46,9 @@ export interface FeedApi {
 
 /**
  * The Feed on a Supabase Realtime channel + persisted history. Keyed by an arbitrary
- * channel string — the app uses `group:<groupId>` so the stream is per-Group (CONTEXT.md):
- * one social surface spanning all the Group's Pools, mounted on both the Group home and
- * every Pool page. Pass "" to render a disabled placeholder until the key is known.
+ * channel string — the app uses `group:<groupId>` on the Group home and `pool:<address>` on
+ * each Pool page, so Pool chatter stays out of the Group stream. Pass "" to render a
+ * disabled placeholder until the key is known.
  */
 /**
  * @param identity a stable per-user id (the wallet address) used to dedupe reactions — display
@@ -56,6 +59,7 @@ export function useFeed(channelKey: string, displayName: string, identity?: stri
   const [events, setEvents] = useState<FeedEvent[]>([]);
   const [present, setPresent] = useState<string[]>([]);
   const [ready, setReady] = useState(false);
+  const [degraded, setDegraded] = useState(false);
   const channelRef = useRef<RealtimeChannel | null>(null);
   // Local echo guard for postSystem: many observers derive the same system post; each client
   // suppresses its own resend, and the id-dedupe in mergeEvents drops cross-client repeats.
@@ -75,6 +79,7 @@ export function useFeed(channelKey: string, displayName: string, identity?: stri
     let cancelled = false; // guards the async history fetch against a Group switch mid-flight
     posted.current = new Set();
     setEvents([]);
+    setDegraded(false);
 
     // History first — late joiners and reloads see the Group's record, not an empty room.
     sb
@@ -84,8 +89,12 @@ export function useFeed(channelKey: string, displayName: string, identity?: stri
       .order("ts", { ascending: false })
       .limit(200)
       .then(({ data, error }) => {
-        if (!cancelled && !error && data) add(data as FeedEvent[]);
-        // error (e.g. table missing) -> ephemeral mode, same as before persistence existed
+        // Degrading to ephemeral mode is fine; degrading SILENTLY is not — a missing column
+        // once cost two accounts a whole room's history with no signal anywhere.
+        if (error) console.warn("feed history unavailable — ephemeral mode", error);
+        if (cancelled) return;
+        setDegraded(!!error);
+        if (!error && data) add(data as FeedEvent[]);
       });
 
     const channel = sb.channel(channelKey, {
@@ -99,7 +108,9 @@ export function useFeed(channelKey: string, displayName: string, identity?: stri
         const names = Object.values(channel.presenceState()).flatMap((entries) =>
           (entries as Array<{ name?: string }>).map((e) => e.name ?? "anon"),
         );
-        setPresent(Array.from(new Set(names)));
+        // No dedupe: presence is keyed per-client, so two "anon"s (or one person on two
+        // devices) are genuinely two people in the room and must both be counted.
+        setPresent(names);
       })
       .subscribe(async (status) => {
         if (status === "SUBSCRIBED") {
@@ -130,7 +141,7 @@ export function useFeed(channelKey: string, displayName: string, identity?: stri
       void supabase
         ?.from("feed_events")
         .upsert({ channel: channelKey, ...event }, { onConflict: "id", ignoreDuplicates: true })
-        .then(() => {});
+        .then(({ error }) => error && console.warn("feed persist failed — event stays ephemeral", error));
     },
     [channelKey],
   );
@@ -171,5 +182,5 @@ export function useFeed(channelKey: string, displayName: string, identity?: stri
     [broadcast, ready],
   );
 
-  return { enabled: FEED_ENABLED, ready, events, present, sendMessage, sendReaction, postSystem };
+  return { enabled: FEED_ENABLED, ready, degraded, events, present, sendMessage, sendReaction, postSystem };
 }
