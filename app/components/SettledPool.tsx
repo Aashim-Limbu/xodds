@@ -2,10 +2,10 @@
 
 import type { PoolTypeName } from "@/lib/anchorClient";
 import { formatUsdc } from "@/lib/format";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { Card } from "@/components/ui/card";
 import { ProofReceipt } from "@/components/ProofReceipt";
+import { MatchBanner } from "@/components/MatchBanner";
+import type { Fixture } from "@/lib/fixtures";
 
 /**
  * A settled Pool. The market is over, so the market grid is gone: this reads
@@ -14,6 +14,7 @@ import { ProofReceipt } from "@/components/ProofReceipt";
  */
 export function SettledPool({
   pool,
+  fixture,
   address,
   labels,
   myEntries,
@@ -33,6 +34,8 @@ export function SettledPool({
     winningOutcome: number | null;
     pot: bigint;
   };
+  /** Teams for the header banner; undefined when the Fixture no longer resolves. */
+  fixture?: Fixture;
   address: string;
   labels: string[];
   myEntries: Record<number, bigint | undefined>;
@@ -53,55 +56,63 @@ export function SettledPool({
     .filter(([, v]) => v && v > 0n)
     .map(([o, v]) => ({ outcome: Number(o), amount: v as bigint }));
   const played = backed.length > 0;
+  const won = claimStatus === "paid" || !!myWinEntry;
 
   return (
     <div className="flex flex-col gap-4">
-      <Card className="gap-3">
-        <div className="flex flex-wrap items-center justify-between gap-2">
-          {/* State carries a text label, never colour alone. */}
-          <Badge variant="secondary">Settled</Badge>
-          <span className="text-[13px] text-muted-foreground">
-            ${formatUsdc(pool.pot)} pot
+      {/* Same banner as a live Pool: flags, Pool Type, state chip, pot. A settled Pool is
+          still a match between two teams, and the header is where you look to see which. */}
+      <MatchBanner
+        fixture={fixture}
+        fixtureId={pool.fixtureId}
+        poolType={pool.poolType}
+        lineX2={pool.lineX2}
+        state="settled"
+        pot={pool.pot}
+      />
+
+      {/* The result is the payoff moment, so it leads with what happened to YOU, not the
+          neutral fact — the winning Outcome is restated by the Proof Receipt right below.
+          Losers get a straight, warm answer rather than a greyed-out nothing. */}
+      <div className={`result-card ${won ? "is-win" : played ? "is-lost" : "is-bystander"}`}>
+        <span className="result-sticker" aria-hidden="true">{won ? "🎉" : played ? "😤" : "⚽"}</span>
+        <div className="result-body">
+          <span className="result-kicker">
+            {winning !== null ? labels[winning] : "No paying Outcome"} · proven
+          </span>
+          <strong className="result-headline">
+            {won ? `You won $${formatUsdc(paidAmount ?? myPayout)}` : played ? "Not your day" : "That's full time"}
+          </strong>
+          <span className="result-sub">
+            {played ? (
+              <>
+                You backed{" "}
+                {backed.map((b, i) => (
+                  <span key={b.outcome}>
+                    {i > 0 ? ", " : ""}
+                    {labels[b.outcome]} · ${formatUsdc(b.amount)}
+                  </span>
+                ))}
+                {won ? "" : " — it didn't come in. Run it back below."}
+              </>
+            ) : (
+              "You sat this one out. The proof is below either way."
+            )}
           </span>
         </div>
 
-        {winning !== null && (
-          <div className="font-display text-2xl font-extrabold uppercase">
-            {labels[winning]}
-          </div>
-        )}
-
-        {played && (
-          <div className="text-sm font-semibold">
-            You backed{" "}
-            {backed.map((b, i) => (
-              <span key={b.outcome}>
-                {i > 0 ? ", " : ""}
-                {labels[b.outcome]} · ${formatUsdc(b.amount)}
-              </span>
-            ))}
-          </div>
-        )}
-
-        {claimStatus === "paid" && (
-          <p className="entry-note m-0">✅ Paid ${formatUsdc(paidAmount ?? 0n)} to your wallet.</p>
-        )}
+        {claimStatus === "paid" && <span className="result-tag">✅ Paid to your wallet</span>}
         {myWinEntry && claimStatus === "claiming" && (
-          <p className="entry-note m-0">🎉 Claiming your ${formatUsdc(myPayout)} payout…</p>
+          <span className="result-tag" role="status">Claiming your ${formatUsdc(myPayout)}…</span>
         )}
         {myWinEntry && claimStatus === "idle" && (
           <Button variant="primary" size="lg" disabled={busy || !canAct} onClick={onClaim}>
             Claim ${formatUsdc(myPayout)}
           </Button>
         )}
-        {played && !myWinEntry && claimStatus !== "paid" && (
-          <p className="m-0 text-sm text-muted-foreground">
-            No payout this time — your Outcome didn&rsquo;t come in. The proof is below.
-          </p>
-        )}
+      </div>
 
-        {error && <p className="error">{error}</p>}
-      </Card>
+      {error && <p className="error">{error}</p>}
 
       <ProofReceipt
         address={address}

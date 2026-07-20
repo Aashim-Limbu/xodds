@@ -8,7 +8,6 @@ import { scoresRootPda } from "@/lib/pdas";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { fixtureById, poolOutcomeLabels } from "@/lib/fixtures";
 import { useFixtures } from "@/lib/useTxlineLive";
-import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -110,10 +109,20 @@ export function ProofReceipt({
 
   return (
     <Card className="gap-0 overflow-hidden p-0">
-      <div className="flex flex-row items-center gap-3 border-b-[3px] border-border bg-primary px-5 py-3">
-        <span className="reveal-sticker text-2xl" aria-hidden="true">🏆</span>
-        <span className="text-foreground font-display text-lg font-extrabold uppercase tracking-[0.06em]">
-          Proven
+      {/* The banner carries the result, not just a word. The proven scoreline is always
+          available (it comes from the receipt itself), so the bar earns its width even when
+          the Fixture's team names are gone from TxLINE. */}
+      <div className="flex flex-row items-center justify-between gap-3 border-b-[3px] border-border bg-primary px-5 py-3">
+        <span className="flex items-center gap-3">
+          <span className="reveal-sticker text-2xl" aria-hidden="true">🏆</span>
+          <span className="text-foreground font-display text-lg font-extrabold uppercase tracking-[0.06em]">
+            Proven
+          </span>
+        </span>
+        <span className="proven-score" aria-label={`Proven score ${p.homeGoals} to ${p.awayGoals}`}>
+          {fixture && <span className="proven-team">{fixture.home}</span>}
+          <span className="proven-digits">{p.homeGoals}&ndash;{p.awayGoals}</span>
+          {fixture && <span className="proven-team">{fixture.away}</span>}
         </span>
       </div>
 
@@ -121,15 +130,9 @@ export function ProofReceipt({
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex flex-col gap-1">
             <h2 className="m-0 font-display text-xl font-extrabold uppercase">Proof Receipt</h2>
-            {fixture && (
-              <div className="flex flex-wrap items-center gap-2 text-sm font-semibold">
-                <span>{fixture.home}</span>
-                <Badge variant="outline" className="text-[13px]">
-                  {p.homeGoals}&ndash;{p.awayGoals}
-                </Badge>
-                <span>{fixture.away}</span>
-              </div>
-            )}
+            <span className="text-[13px] text-muted-foreground">
+              Settled by TxLINE&rsquo;s Score Proof
+            </span>
           </div>
           <Button variant="secondary" size="sm" onClick={share}>
             {shared ? "Link copied ✓" : "Share receipt"}
@@ -180,15 +183,16 @@ export function ProofReceipt({
         {/* A failed proof is evidence, not a detail: render it open and never let a fan
             miss it behind a disclosure. */}
         <Collapsible defaultOpen={check ? !check.ok : false}>
-          <CollapsibleTrigger asChild>
-            <Button variant="ghost" size="sm" className="w-full justify-between px-0">
-              <span>⛓ Check it yourself</span>
-              <span aria-hidden="true" className="text-muted-foreground">Show proof detail</span>
-            </Button>
+          {/* One control, not a heading racing an action. The chevron is the only thing that
+              moves — it says "there is more here" without a second competing label. */}
+          <CollapsibleTrigger className="proof-toggle" aria-label="Check it yourself — show the proof detail">
+            <span className="proof-toggle-label">Check it yourself</span>
+            <span className="proof-toggle-hint">Score root, Merkle path, transaction</span>
+            <span className="proof-chevron" aria-hidden="true">›</span>
           </CollapsibleTrigger>
 
           <CollapsibleContent className="proof-detail overflow-hidden">
-            <div className="flex flex-col gap-3 pt-3">
+            <div className="flex flex-col gap-3 px-3.5 pb-3.5 pt-1">
               <div>
                 <ReceiptLabel>TxLINE score root (verified against)</ReceiptLabel>
                 <code className="mono receipt-bar">{toHex(receipt.scoreRoot)}</code>
