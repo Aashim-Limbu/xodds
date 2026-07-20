@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
-import { FIXTURES, hydrateFixtures, type Fixture } from "./fixtures";
+import { FIXTURES, hydrateFixtures, restoreSeenFixtures, type Fixture } from "./fixtures";
 import { pick1x2Probabilities, type OddsPayload, type TxlineLive } from "./txline";
 
 // Fetch real TxLINE Reference Odds + Feed lines for a Fixture via the server route, then keep
@@ -92,14 +92,23 @@ export function useFixtures(): Fixture[] {
   const [fixtures, setFixtures] = useState<Fixture[]>([...FIXTURES]);
   useEffect(() => {
     let alive = true;
-    fetch("/api/txline/fixtures")
-      .then((r) => (r.ok ? r.json() : []))
-      .then((real: Array<{ fixtureId: string; home: string; away: string; kickoff: number }>) => {
-        if (!alive || !real.length) return;
-        hydrateFixtures(real);
-        setFixtures([...FIXTURES]);
-      })
-      .catch(() => {});
+    // Fixtures seen on a previous visit resolve immediately — a settled Pool's match has
+    // already dropped out of the upcoming snapshot below.
+    restoreSeenFixtures();
+    setFixtures([...FIXTURES]);
+    // Two sources, both merged by fixtureId: TxLINE's upcoming snapshot (fresh, but drops a
+    // match the moment it kicks off) and our own name book (durable, and the only thing that
+    // can name a settled Pool's Fixture — including for a stranger on a share link).
+    for (const url of ["/api/txline/fixtures", "/api/fixtures"]) {
+      fetch(url)
+        .then((r) => (r.ok ? r.json() : []))
+        .then((real: Array<{ fixtureId: string; home: string; away: string; kickoff: number }>) => {
+          if (!alive || !real.length) return;
+          hydrateFixtures(real);
+          setFixtures([...FIXTURES]);
+        })
+        .catch(() => {});
+    }
     return () => {
       alive = false;
     };

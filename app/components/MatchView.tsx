@@ -7,12 +7,12 @@ import { poolKickoffTs } from "@/lib/config";
 import { friendlyError } from "@/lib/errors";
 import { useFeed } from "@/lib/feed";
 import { fixtureById, poolOutcomeLabels } from "@/lib/fixtures";
-import { formatUsdc } from "@/lib/format";
-import { MARKETS, groupByFixture } from "@/lib/markets";
+import { formatUsdc, parseUsdc, timeUntil } from "@/lib/format";
+import { MARKETS, groupByFixture, lineMenu, marketLines } from "@/lib/markets";
 import { findOrOpenPool } from "@/lib/openMarket";
 import { useFinalWhistle } from "@/lib/useFinalWhistle";
 import { marketState } from "@/lib/txline";
-import { useFixtures } from "@/lib/useTxlineLive";
+import { useFixtures, useTxlineLive } from "@/lib/useTxlineLive";
 import { useMyName } from "@/lib/useMyName";
 import { MatchBanner } from "./MatchBanner";
 import { MarketSection, type BackTarget } from "./MarketSection";
@@ -26,8 +26,20 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
   const { name: displayName } = useMyName();
   // One Room for the whole Match — not one per market.
   const feed = useFeed(`fixture:${group.toBase58()}:${fixtureId.toString()}`, displayName, wallet);
+  // Real TxLINE scores — the same source PoolView's live strip uses.
+  const live = useTxlineLive(fixtureId);
   const [pools, setPools] = useState<PoolAccount[]>([]);
-  const stake = 5_000_000n; // ponytail: fixed stake until a stake picker exists
+  // Which Line each market's slider is on. Empty = use the menu's midpoint.
+  const [selectedLine, setSelectedLine] = useState<Partial<Record<string, number>>>({});
+  // Kept as a STRING like PoolView's picker: a bigint can't hold "2." mid-typing.
+  const [amount, setAmount] = useState("5");
+  const stake = (() => {
+    try {
+      return parseUsdc(amount);
+    } catch {
+      return 0n; // mid-edit / junk — Back is disabled below rather than sending 0
+    }
+  })();
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const backInFlight = useRef(false);
@@ -123,64 +135,147 @@ export function MatchView({ group, fixtureId }: { group: PublicKey; fixtureId: b
 
   if (!fixture) return <div className="panel muted">Loading Match…</div>;
 
+  // One header slot, three states, so it is never an empty strip: a countdown before kickoff,
+  // the real scoreline while the match runs, and the competition alone once it is done.
+  const countdown = timeUntil(fixture.kickoff);
+  const competition = fixture.competition ?? "Match";
+  // Chain state outranks the feed. `live.score` keeps returning a record after full time and
+  // its phase string can still read "In play", so gating on the feed alone left a SETTLED
+  // Match claiming to be live — next to its own Proof Receipt.
+  const done = match?.state === "settled" || match?.state === "void";
+  const status = done ? (
+    <span className="kickoff-line">
+      <strong>{match?.state === "void" ? "Void" : "Full time"}</strong>
+      {live.score ? ` · ${fixture.home} ${live.score.home}–${live.score.away} ${fixture.away}` : ""}
+    </span>
+  ) : live.score ? (
+    <span className="live-strip" role="status">
+      <span className="live-dot" aria-hidden="true" />
+      <span className="live-phase">{live.score.phase}</span>
+      <span className="live-score">
+        {fixture.home} {live.score.home}–{live.score.away} {fixture.away}
+      </span>
+    </span>
+  ) : countdown ? (
+    <span className="kickoff-line">
+      <strong>{competition}</strong> · kicks off in {countdown}
+    </span>
+  ) : (
+    <span className="kickoff-line"><strong>{competition}</strong> · under way</span>
+  );
+
   return (
-    <div className="pool-layout">
-      {/* The banner is a heavy element (hard shadows, 3px borders); a zero gap let it collide
-          with the markets panel. 18px is the same rhythm PoolView gives it. */}
-      <div className="stack" style={{ gap: 18 }}>
-        <MatchBanner
-          fixture={fixture}
-          fixtureId={fixtureId}
-          state={match?.state ?? "open"}
-          pot={match?.pot ?? 0n}
-          markets={pools.length}
-        />
+    // The banner describes the whole Match, so it spans the full width ABOVE the two columns.
+    // Nested inside the left one, it pushed the markets panel down while the Room started at
+    // the banner's top — so the two columns visibly began at different heights.
+    <>
+      <MatchBanner
+        fixture={fixture}
+        fixtureId={fixtureId}
+        state={match?.state ?? "open"}
+        pot={match?.pot ?? 0n}
+        markets={pools.length}
+        status={status}
+      />
 
-        {error && <p className="error" role="alert">{error}</p>}
+      <div className="pool-layout match-layout">
+        <div className="stack" style={{ gap: 18 }}>
+          {error && <p className="error" role="alert">{error}</p>}
 
-        {match && <MatchReceipt match={match} />}
+          {match && <MatchReceipt match={match} />}
 
-        <div className="panel stack">
-          {MARKETS.flatMap((spec) => {
+          <div className="panel stack">
+          {MARKETS.map((spec) => {
             const existing = pools.filter((p) => p.poolType === spec.poolType);
-            // One section PER EXISTING POOL, not per distinct line. Two Pools can share a
-            // (type, line) — `line_x2` isn't in the PDA seeds — and collapsing them by line
-            // would hide the second one's money entirely. Money must never be invisible.
-            if (existing.length === 0) {
-              return [
-                <MarketSection
-                  key={`${spec.poolType}:new`}
-                  spec={spec}
-                  lineX2={spec.defaultLineX2}
-                  pool={null}
-                  labels={poolOutcomeLabels(spec.poolType, spec.defaultLineX2, fixture)}
-                  myEntries={{}}
-                  stake={stake}
-                  busy={busy}
-                  canOpen={canOpen}
-                  onBack={back}
-                />,
-              ];
-            }
-            return existing.map((pool) => (
+            // The slider's menu: what the feed quotes, plus every Line that already holds
+            // money, plus a standard spread. The feed is not the limit — it quoted zero
+            // usable full-match goal Lines on this slate (lib/markets.ts).
+            const menu = lineMenu(spec, marketLines(spec, live), existing.map((p) => p.lineX2));
+            const selected = selectedLine[spec.poolType] ?? menu[Math.floor(menu.length / 2)] ?? 0;
+            // A Pool at the selected Line, if one exists. Several Pools CAN share a Line —
+            // line_x2 isn't in the PDA seeds — so the rest stay reachable via the chips below.
+            const atLine = existing.filter((p) => p.lineX2 === selected);
+            const pool = atLine[0] ?? null;
+            // Every Line with money, so a Pool can never hide behind an unturned slider.
+            const openLines = [...existing]
+              .sort((a, b) => a.lineX2 - b.lineX2)
+              .map((p) => ({ lineX2: p.lineX2, pot: p.pot }));
+
+            return (
               <MarketSection
-                key={pool.address.toBase58()}
+                key={spec.poolType}
                 spec={spec}
-                lineX2={pool.lineX2}
+                lineX2={selected}
+                lines={menu}
+                onLineChange={(lineX2) =>
+                  setSelectedLine((prev) => ({ ...prev, [spec.poolType]: lineX2 }))
+                }
+                openLines={openLines}
                 pool={pool}
-                labels={poolOutcomeLabels(spec.poolType, pool.lineX2, fixture)}
-                myEntries={myEntries[pool.address.toBase58()] ?? {}}
+                labels={poolOutcomeLabels(spec.poolType, selected, fixture)}
+                myEntries={pool ? myEntries[pool.address.toBase58()] ?? {} : {}}
                 stake={stake}
                 busy={busy}
                 canOpen={canOpen}
                 onBack={back}
               />
-            ));
+            );
           })}
+          </div>
         </div>
 
-        <Feed feed={feed} me={displayName} myId={wallet ?? displayName} />
+        {/* Right column, two sections: the stake control that every BACK button reads, then
+            the Room. The markets run down the whole left column, so the stake belongs beside
+            them rather than pushing them down. */}
+        <div className="match-rail">
+          {/* One stake for every market on the Match — the same control PoolView puts in its
+              rail, moved to the top here because the markets run down the whole column. */}
+          <div className="panel stake-card match-stake rail-card">
+            <h3 className="stake-title">Your stake</h3>
+            <p className="stake-hint">Every BACK button uses this.</p>
+            <div className="stake-chips" role="group" aria-label="Stake amount">
+              {["1", "5", "10", "25"].map((v) => (
+                <button
+                  key={v}
+                  className={`stake-chip${amount === v ? " active" : ""}`}
+                  aria-pressed={amount === v}
+                  onClick={() => setAmount(v)}
+                >
+                  ${v}
+                </button>
+              ))}
+              <label className="stake-custom">
+                <span className="label">Custom</span>
+                <span className="stake-field">
+                  <span aria-hidden="true">$</span>
+                  <input
+                    value={amount}
+                    inputMode="decimal"
+                    aria-label="Custom stake amount in dollars"
+                    onChange={(e) => setAmount(e.target.value)}
+                  />
+                </span>
+              </label>
+            </div>
+          </div>
+
+
+        {/* The Room is the second grid column, not a slab under a long market list — on a Match
+            page the markets scroll for screens and the chat has to stay reachable beside them. */}
+        {/* A settled or void Match has no money left to move, so the Room goes read-only:
+            history stays (the receipt is the point), the composer goes. */}
+        <Feed
+          feed={feed}
+          me={displayName}
+          myId={wallet ?? displayName}
+          locked={
+            match && (match.state === "settled" || match.state === "void")
+              ? { reason: `This Match is ${match.state === "void" ? "void" : "settled"} — the room is closed.` }
+              : undefined
+          }
+        />
+        </div>
       </div>
-    </div>
+    </>
   );
 }

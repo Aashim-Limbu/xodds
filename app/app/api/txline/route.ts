@@ -1,5 +1,5 @@
 import { NextResponse } from "next/server";
-import { finalisedFeedLines, liveScore, normalizeScores, pick1x2Probabilities, pickGoalLines, type OddsPayload, type TxlineLive } from "@/lib/txline";
+import { finalisedFeedLines, liveScore, normalizeScores, pick1x2Probabilities, pickGoalLines, pickHandicapLines, type OddsPayload, type TxlineLive } from "@/lib/txline";
 
 // Server-side proxy to the real TxLINE devnet feed. Holds the API token so it never reaches
 // the browser (the trust boundary — same as the faucet route). Returns real Reference Odds +
@@ -31,18 +31,25 @@ export async function GET(req: Request): Promise<Response> {
     ]);
 
     const out: TxlineLive = {};
+    // Scores first: Handicap lines are quoted against `part1`, and only the scores feed says
+    // whether part1 is the home side. Default true when the feed is dark — the same assumption
+    // normalizeScores already makes.
+    let participant1IsHome = true;
+    if (scoresRes.ok) {
+      // Live feed fields are PascalCase; normalise before the camelCase helpers.
+      const records = normalizeScores((await scoresRes.json()) as Array<Record<string, unknown>>);
+      if (records.length) participant1IsHome = records[0].participant1IsHome;
+      const lines = finalisedFeedLines(records);
+      if (lines.length) out.matchEvents = lines;
+      out.score = liveScore(records);
+    }
     if (oddsRes.ok) {
       const odds = (await oddsRes.json()) as OddsPayload[];
       out.referenceProbabilities = pick1x2Probabilities(odds);
       const goalLines = pickGoalLines(odds);
       if (goalLines.length) out.goalLines = goalLines;
-    }
-    if (scoresRes.ok) {
-      // Live feed fields are PascalCase; normalise before the camelCase helpers.
-      const records = normalizeScores((await scoresRes.json()) as Array<Record<string, unknown>>);
-      const lines = finalisedFeedLines(records);
-      if (lines.length) out.matchEvents = lines;
-      out.score = liveScore(records);
+      const handicapLines = pickHandicapLines(odds, participant1IsHome);
+      if (handicapLines.length) out.handicapLines = handicapLines;
     }
     return NextResponse.json(out, { headers: { "Cache-Control": "s-maxage=30" } });
   } catch {

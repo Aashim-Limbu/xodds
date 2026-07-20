@@ -24,6 +24,7 @@ export function MatchBanner({
   state,
   pot,
   markets,
+  status,
 }: {
   fixture?: Fixture;
   fixtureId: bigint;
@@ -35,6 +36,9 @@ export function MatchBanner({
   pot: bigint;
   /** Match banner only: how many markets are open on this Fixture. */
   markets?: number;
+  /** Optional middle slot — the Match page fills it with kickoff/live status. A node, not
+   * data, so this component stays dumb and the Pool page is unaffected. */
+  status?: React.ReactNode;
 }) {
   const done = state === "settled" || state === "void";
   return (
@@ -65,6 +69,8 @@ export function MatchBanner({
           <span className={`badge ${state}`}>{STATE_LABEL[state]}</span>
         </div>
       </div>
+      {status && <div className="match-status">{status}</div>}
+
       <div className="prize-tag">
         <div className="label">{done ? "Final prize pool" : "Total prize pool"}</div>
         {/* Open: rolls up rather than snapping, so a fresh Entry is felt. */}

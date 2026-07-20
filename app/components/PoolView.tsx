@@ -8,19 +8,14 @@ import type { PoolAccount, PoolState } from "@/lib/anchorClient";
 import { fixtureById, poolOutcomeLabels, poolTypeLabel } from "@/lib/fixtures";
 import { useFixtures, useTxlineLive } from "@/lib/useTxlineLive";
 import { recordResult } from "@/lib/useLeaderboard";
+import { MatchBanner } from "@/components/MatchBanner";
 import { decimalOdds, formatUsdc, parseUsdc } from "@/lib/format";
 import { useMyName } from "@/lib/useMyName";
 import { friendlyError } from "@/lib/errors";
-import { KICKOFF_OFFSET_SECONDS } from "@/lib/config";
+import { poolKickoffTs } from "@/lib/config";
+import { useCountUp } from "@/lib/useCountUp";
 import { Feed } from "./Feed";
 import { SettledPool } from "@/components/SettledPool";
-
-const STATE_LABEL: Record<PoolState, string> = {
-  open: "Open",
-  locked: "Locked",
-  settled: "Settled",
-  void: "Void",
-};
 
 const VOID_REASON_LABEL: Record<string, string> = {
   abandoned: "the Fixture was abandoned",
@@ -44,9 +39,10 @@ export function PoolView({ address }: { address: string }) {
   const { name: displayName } = useMyName();
   const poolKey = new PublicKey(address);
   const [pool, setPool] = useState<PoolAccount | null>(null);
-  // Feed is per-Group (CONTEXT.md): every Pool in the Group shares one stream, so system
-  // posts carry the Fixture for context. "" until the Pool loads -> hook waits.
-  const feed = useFeed(pool ? `group:${pool.group.toBase58()}` : "", displayName, wallet);
+  // Feed is per-Pool: each Pool has its own stream, separate from the Group home feed.
+  // "" until the Pool loads -> hook waits.
+  // ponytail: pre-split `group:` rows stay on the Group home feed; no backfill.
+  const feed = useFeed(pool ? `pool:${address}` : "", displayName, wallet);
   const [myEntries, setMyEntries] = useState<(bigint | null)[]>([null, null, null]);
   const [amount, setAmount] = useState("5");
   const [busy, setBusy] = useState(false);
@@ -58,6 +54,8 @@ export function PoolView({ address }: { address: string }) {
   const recorded = useRef(false); // guards the one leaderboard write per settled Pool view
   // Real TxLINE Reference Odds + Feed lines when a token is configured; {} (static fallback) otherwise.
   const live = useTxlineLive(pool?.fixtureId ?? 0n);
+  // Above the early returns — hook order has to stay stable across renders.
+  const rollingPot = useCountUp(pool?.pot ?? 0n);
 
   // The shared Pool (pot / totals / state) via the cached server route — so N tabs on the same
   // Pool collapse to one chain read per few seconds instead of N direct RPC polls.
@@ -87,10 +85,17 @@ export function PoolView({ address }: { address: string }) {
   }, [refreshPool, refreshEntries]);
 
   // Poll the shared Pool state and auto-post Pool-action transitions to the Feed.
+  // Background tabs don't poll: on public devnet the RPC budget is per-IP, and a few
+  // forgotten tabs will burn it on Pools nobody is looking at. Refreshes on refocus.
   useEffect(() => {
-    refreshPool();
-    const id = setInterval(refreshPool, 4000);
-    return () => clearInterval(id);
+    const tick = () => !document.hidden && refreshPool();
+    tick();
+    const id = setInterval(tick, 4000);
+    document.addEventListener("visibilitychange", tick);
+    return () => {
+      clearInterval(id);
+      document.removeEventListener("visibilitychange", tick);
+    };
   }, [refreshPool]);
 
   // Load this User's Entries once (and on wallet change); own actions re-read via refresh().
@@ -184,6 +189,7 @@ export function PoolView({ address }: { address: string }) {
       <div className="pool-layout">
         <SettledPool
           pool={pool}
+          fixture={fixture}
           address={address}
           labels={labels}
           myEntries={myEntries.map((e) => e ?? undefined)}
@@ -224,7 +230,7 @@ export function PoolView({ address }: { address: string }) {
     setError(null);
     try {
       const nonce = await client.freeNonce(pool.group, pool.fixtureId, pool.poolType);
-      const kickoff = Math.floor(Date.now() / 1000) + KICKOFF_OFFSET_SECONDS;
+      const kickoff = poolKickoffTs(fixtureById(pool.fixtureId)?.kickoff);
       const newPool = await client.createPool(pool.group, pool.fixtureId, nonce, kickoff, pool.poolType, pool.lineX2);
       feed.postSystem(
         `rematch:${newPool.toBase58()}`,
@@ -250,26 +256,14 @@ export function PoolView({ address }: { address: string }) {
     <div className="pool-layout">
       <div className="stack" style={{ gap: 0 }}>
         <div style={{ marginBottom: 24 }}>
-          <div className="match-banner">
-            <div className="stack" style={{ gap: 10 }}>
-              <div className="row" style={{ gap: 14 }}>
-                <span className="sticker tilt-l" aria-hidden="true" style={{ fontSize: 52 }}>🏆</span>
-                <div className="match-name">
-                  {fixture ? `${fixture.home} vs ${fixture.away}` : `Fixture ${pool.fixtureId}`}
-                </div>
-              </div>
-              <div className="row" style={{ flexWrap: "wrap" }}>
-                <span className="chip-id">
-                  {poolTypeLabel(pool.poolType, pool.lineX2)} · FX-{pool.fixtureId.toString()}
-                </span>
-                <span className={`badge ${pool.state}`}>{STATE_LABEL[pool.state]}</span>
-              </div>
-            </div>
-            <div className="prize-tag">
-              <div className="label">TOTAL PRIZE POOL</div>
-              <div className="pot">${formatUsdc(pool.pot)}</div>
-            </div>
-          </div>
+          <MatchBanner
+            fixture={fixture}
+            fixtureId={pool.fixtureId}
+            poolType={pool.poolType}
+            lineX2={pool.lineX2}
+            state={pool.state}
+            pot={rollingPot}
+          />
           {pool.state === "locked" && live.score && (
             <div className="live-strip" role="status">
               <span className="live-dot" aria-hidden="true" />
@@ -300,25 +294,37 @@ export function PoolView({ address }: { address: string }) {
               const mult = stake > 0n ? Number(projected) / Number(stake) : 0;
               const share = pool.pot > 0n ? Number((pool.outcomeTotals[o] * 100n) / pool.pot) : 0;
               return (
-                <div key={o} className="outcome">
+                <div key={o} className={`outcome${(mine ?? 0n) > 0n ? " mine" : ""}`}>
                   <span className="outcome-label">{label}</span>
-                  <span className="odds">
-                    {showOdds && live.referenceProbabilities && <span className="odds-live">LIVE</span>}
-                    {/* Open: sharp-market odds. Locked with live data: the win-probability ticker. */}
-                    {showOdds && (pool.state === "locked" && live.referenceProbabilities
-                      ? `Win ${Math.round(probs[o] * 100)}% · `
-                      : `Odds ${decimalOdds(probs[o])} · `)}
-                    ${formatUsdc(pool.outcomeTotals[o])} in
-                    {mine ? ` · yours $${formatUsdc(mine)}` : ""}
-                  </span>
+                  {/* Open: sharp-market odds. Locked with live data: the win-probability ticker. */}
+                  {showOdds && (() => {
+                    const isProb = pool.state === "locked" && !!live.referenceProbabilities;
+                    const value = isProb ? `${Math.round(probs[o] * 100)}%` : decimalOdds(probs[o]);
+                    return (
+                      <span className="odds-hero" key={value} aria-label={isProb ? `${value} win chance` : `Odds ${value}`}>
+                        {live.referenceProbabilities && <span className="odds-live" title="Live odds" aria-hidden="true" />}
+                        {value}
+                        <span className="odds-unit">{isProb ? "to win" : "×"}</span>
+                      </span>
+                    );
+                  })()}
                   {pool.state === "open" && (
                     <>
-                      <span className="pot-share" aria-label={`${share}% of the pot backs this outcome`}>
-                        <span className="pot-share-bar" style={{ transform: `scaleX(${share / 100})` }} aria-hidden="true" />
-                        <span className="label">{share}% of pot</span>
+                      <span className="pot-share" aria-label={`$${formatUsdc(pool.outcomeTotals[o])} backing this outcome, ${share}% of the pot`}>
+                        <span className="label">
+                          <span>${formatUsdc(pool.outcomeTotals[o])}</span>
+                          <span>{share}%</span>
+                        </span>
+                        <span className="track">
+                          <span className="pot-share-bar" style={{ transform: `scaleX(${share / 100})` }} aria-hidden="true" />
+                        </span>
+                      </span>
+                      {/* Always rendered so cards you haven't backed keep the same rhythm. */}
+                      <span className={`mine-tag${(mine ?? 0n) > 0n ? "" : " empty"}`}>
+                        {(mine ?? 0n) > 0n ? `You're in $${formatUsdc(mine!)}` : "Not in yet"}
                       </span>
                       {stake > 0n && (
-                        <span className="win-preview">
+                        <span className="win-preview" key={amount}>
                           win ~${formatUsdc(projected)} <span className="muted">({mult.toFixed(1)}x)</span>
                         </span>
                       )}
@@ -336,31 +342,6 @@ export function PoolView({ address }: { address: string }) {
               );
             })}
           </div>
-          {pool.state === "open" && (
-            <div className="panel row" style={{ marginBottom: 0, flexWrap: "wrap", gap: 10 }}>
-              <span className="muted" style={{ fontSize: 13, fontWeight: 700 }}>Your stake</span>
-              {["1", "5", "10", "25"].map((v) => (
-                <button
-                  key={v}
-                  className={`gchip${amount === v ? " active" : ""}`}
-                  aria-pressed={amount === v}
-                  onClick={() => setAmount(v)}
-                >
-                  ${v}
-                </button>
-              ))}
-              <label className="row" style={{ gap: 6 }}>
-                <span className="label muted">custom</span>
-                <input
-                  value={amount}
-                  inputMode="decimal"
-                  aria-label="Custom stake amount (USDC)"
-                  onChange={(e) => setAmount(e.target.value)}
-                  style={{ width: 80 }}
-                />
-              </label>
-            </div>
-          )}
           {pool.state === "void" && (
             <button disabled={busy || !client} onClick={rematch}>
               🔁 Run it back — same Pool, new game
@@ -368,9 +349,69 @@ export function PoolView({ address }: { address: string }) {
           )}
           {error && <p className="error">{error}</p>}
         </div>
+
+        {/* The Room takes the wide column under the cards — a chat squeezed into a 360px
+            rail was a tall thin ribbon with dead space beside it. */}
+        <Feed feed={feed} me={displayName} myId={wallet ?? displayName} />
       </div>
 
-      <Feed feed={feed} me={displayName} myId={wallet ?? displayName} />
+      <aside className="pool-rail">
+        {/* The stake drives every BACK button and every win preview on the page, so it reads
+            as the hero control of the rail — yellow, not another quiet white card. */}
+        {pool.state === "open" && (
+          <div className="panel rail-card stake-card">
+            <h3 className="stake-title">Your stake</h3>
+            <p className="stake-hint">Every BACK button uses this.</p>
+            <div className="stake-chips" role="group" aria-label="Stake amount">
+              {["1", "5", "10", "25"].map((v) => (
+                <button
+                  key={v}
+                  className={`stake-chip${amount === v ? " active" : ""}`}
+                  aria-pressed={amount === v}
+                  onClick={() => setAmount(v)}
+                >
+                  ${v}
+                </button>
+              ))}
+            </div>
+            <label className="stake-custom">
+              <span className="label">Custom</span>
+              <span className="stake-field">
+                <span aria-hidden="true">$</span>
+                <input
+                  value={amount}
+                  inputMode="decimal"
+                  aria-label="Custom stake amount in dollars"
+                  onChange={(e) => setAmount(e.target.value)}
+                />
+              </span>
+            </label>
+          </div>
+        )}
+        {/* ponytail: per-side detail already lives on each card; this is just the roll-up */}
+        {myEntries.some((e) => (e ?? 0n) > 0n) && (
+          <div className="panel rail-card position-bar">
+            <h3 className="rail-title">
+              Your position
+              <strong>${formatUsdc(myEntries.reduce((s: bigint, e) => s + (e ?? 0n), 0n))}</strong>
+            </h3>
+            <ul className="position-list">
+              {myEntries.map((e, o) => {
+                const mine = e ?? 0n;
+                return mine > 0n ? (
+                  <li key={o}>
+                    <span className="side">{labels[o]}</span>
+                    <span className="amt">${formatUsdc(mine)}</span>
+                    {pool.pot > 0n && pool.outcomeTotals[o] > 0n && (
+                      <span className="pays">→ ${formatUsdc((mine * pool.pot) / pool.outcomeTotals[o])}</span>
+                    )}
+                  </li>
+                ) : null;
+              })}
+            </ul>
+          </div>
+        )}
+      </aside>
     </div>
   );
 }

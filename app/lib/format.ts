@@ -38,3 +38,20 @@ export function emailLocalPart(email: string | null | undefined): string | null 
 export function feedDisplayName(email: string | null | undefined, wallet: string | null | undefined): string {
   return emailLocalPart(email) ?? (wallet ? shortAddress(wallet) : "anon");
 }
+
+/**
+ * Human countdown to a unix-seconds instant: "2d 4h", "3h 12m", "45m", "any moment now".
+ * Coarse on purpose — a Match header wants "kicks off in 2d", not a ticking clock.
+ * Returns null once the instant has passed, so callers can switch to a live/ended state.
+ */
+export function timeUntil(unixSeconds: number, nowMs = Date.now()): string | null {
+  const secs = unixSeconds - Math.floor(nowMs / 1000);
+  if (secs <= 0) return null;
+  const d = Math.floor(secs / 86400);
+  const h = Math.floor((secs % 86400) / 3600);
+  const m = Math.floor((secs % 3600) / 60);
+  if (d > 0) return h > 0 ? `${d}d ${h}h` : `${d}d`;
+  if (h > 0) return m > 0 ? `${h}h ${m}m` : `${h}h`;
+  if (m > 0) return `${m}m`;
+  return "any moment now";
+}
